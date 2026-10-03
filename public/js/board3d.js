@@ -159,6 +159,7 @@ export function createBoard(container) {
     const road = new THREE.Mesh(ribbon, roadMat);
     road.receiveShadow = true;
     road.position.y = 0.02;
+    road.userData.route = r.id;
     group.add(road);
     // 中央の破線
     for (let i = 2; i < 58; i += 3) {
@@ -253,7 +254,7 @@ export function createBoard(container) {
     const limitTag = textSprite(String(r.limit), { size: 1.3, color: '#b2523f', box: true });
     limitTag.position.set(start.x - 0.2, 2.4, start.z);
     group.add(limitTag);
-    return { r, curve, group, pad, ring, lamp, gate, cp, side, start, cards: [] };
+    return { r, curve, group, pad, ring, lamp, gate, cp, side, start, road, cards: [] };
   }
 
   // ---- 駒(トラック) ----
@@ -275,6 +276,10 @@ export function createBoard(container) {
     const label = textSprite(name, { size: 0.75, color: '#4b483e', box: true });
     label.position.set(0, 2.2, 0);
     g.add(label);
+    // つかみやすいように、見えない大きめの当たり判定を付ける
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 2.6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+    grip.position.set(0, 1.2, 0);
+    g.add(grip);
     g.traverse((o) => (o.userData.truck = g));
     g.userData.cargoMesh = cargo;
     g.userData.cab = cab;
@@ -547,21 +552,30 @@ export function createBoard(container) {
     }
   }
   const el = renderer.domElement;
-  el.addEventListener('pointerdown', (ev) => {
-    if (state.draggable == null) return;
-    pick(ev);
-    const t = trucks.get(state.draggable);
-    const hit = ray.intersectObject(t, true)[0];
-    if (hit) {
-      drag.truck = t;
-      drag.moved = false;
-      controls.enabled = false;
-      el.setPointerCapture(ev.pointerId);
-      el.style.cursor = 'grabbing';
-      return;
-    }
-    drag.downAt = [ev.clientX, ev.clientY];
-  });
+  const routeTargets = () => Object.values(routes).flatMap((r) => [r.pad, r.road]);
+  // capture(先回り)で受けて、トラックをつかんだときはカメラの回転に渡さない
+  el.addEventListener(
+    'pointerdown',
+    (ev) => {
+      if (state.draggable == null) return;
+      pick(ev);
+      const t = trucks.get(state.draggable);
+      const hit = ray.intersectObject(t, true)[0];
+      if (hit) {
+        ev.stopImmediatePropagation();
+        ev.preventDefault();
+        drag.truck = t;
+        drag.moved = false;
+        controls.enabled = false;
+        try { el.setPointerCapture(ev.pointerId); } catch { /* 古いブラウザ */ }
+        el.style.cursor = 'grabbing';
+        api.onGrab?.();
+        return;
+      }
+      drag.downAt = [ev.clientX, ev.clientY];
+    },
+    { capture: true }
+  );
   el.addEventListener('pointermove', (ev) => {
     pick(ev);
     if (drag.truck) {
@@ -577,7 +591,7 @@ export function createBoard(container) {
     if (state.draggable != null) {
       const t = trucks.get(state.draggable);
       const hit = ray.intersectObject(t, true)[0];
-      const pad = ray.intersectObjects(Object.values(routes).map((r) => r.pad))[0];
+      const pad = ray.intersectObjects(routeTargets())[0];
       el.style.cursor = hit ? 'grab' : pad ? 'pointer' : '';
     }
   });
@@ -593,11 +607,25 @@ export function createBoard(container) {
     }
     if (state.draggable != null && drag.downAt && Math.hypot(ev.clientX - drag.downAt[0], ev.clientY - drag.downAt[1]) < 6) {
       pick(ev);
-      const pad = ray.intersectObjects(Object.values(routes).map((r) => r.pad))[0];
+      const pad = ray.intersectObjects(routeTargets())[0];
       if (pad) api.onRouteDrop?.(pad.object.userData.route, true);
     }
     drag.downAt = null;
   });
+
+  // 3D の位置を画面の座標に直す(案内の矢印やテストに使う)
+  function screenPos(pid) {
+    const t = trucks.get(pid);
+    if (!t) return null;
+    const v = t.position.clone().add(new THREE.Vector3(0, 0.8, 0)).project(camera);
+    const rect = el.getBoundingClientRect();
+    return { x: rect.left + ((v.x + 1) / 2) * rect.width, y: rect.top + ((1 - v.y) / 2) * rect.height };
+  }
+  function padScreenPos(routeId) {
+    const v = routes[routeId].pad.position.clone().project(camera);
+    const rect = el.getBoundingClientRect();
+    return { x: rect.left + ((v.x + 1) / 2) * rect.width, y: rect.top + ((1 - v.y) / 2) * rect.height };
+  }
 
   function setDraggable(pid) {
     if (state.draggable != null && pid == null) {
@@ -682,6 +710,8 @@ export function createBoard(container) {
     drive,
     shake,
     truckPos,
+    screenPos,
+    padScreenPos,
     focus,
     tween,
     routes,

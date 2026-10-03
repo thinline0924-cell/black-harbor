@@ -62,6 +62,13 @@ body::after {
 }
 #game.screen { background: transparent; pointer-events: none; }
 #game.screen > * { pointer-events: auto; }
+/* MAP タブでは、盤の上の透明な部分のクリックを 3D の盤まで通す(トラックをつかむ・回転するため) */
+#game.screen > .tab-body,
+#game.screen > .game-head,
+#game.screen > .dots { pointer-events: none; }
+#game.screen.paper > .tab-body { pointer-events: auto; }
+#game.screen > .game-head > *,
+.tab-pane[data-pane='map'] > * { pointer-events: auto; }
 #game.screen.paper { background: linear-gradient(180deg, rgba(205, 200, 176, 0.96), rgba(198, 193, 168, 0.96)); }
 
 /* 「・:・」の点線の帯 */
@@ -287,6 +294,10 @@ body::after {
   padding-bottom: 12px;
 }
 .map-hud:empty { display: none; }
+.map-hud .route-pick { gap: 6px; }
+.map-hud .route-card { padding: 6px 8px; }
+.map-hud .sticky-go { position: sticky; bottom: -12px; background: var(--panel); margin: 8px 0 -12px; padding: 10px 14px 12px; border-top: 1px solid var(--line); }
+.map-hud .sticky-go .row-btns { margin: 0; }
 .map-help { position: absolute; left: 0; bottom: 0; font-size: 12px; background: rgba(218, 213, 194, 0.85); padding: 4px 10px; }
 .legend { margin: 8px 14px; font-size: 13px; }
 .legend div { display: flex; gap: 8px; align-items: center; margin: 4px 0; }

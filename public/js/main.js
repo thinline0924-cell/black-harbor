@@ -6,7 +6,8 @@
 import * as E from './engine.js';
 import { lineChart, heatHistogram, hbars, stacked, donut, esc } from './charts.js';
 import { RULES_HTML, SLIDES, COACH } from './content.js';
-import { shards, sfx, soundOn, setSound } from './fx.js';
+import { shards } from './fx.js';
+import { sfx, music, engine, unlock, getSettings, setSetting } from './audio.js';
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -71,6 +72,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, app.skip ? 0 : ms));
 function showScreen(id) {
   for (const s of $$('.screen')) s.classList.toggle('hidden', s.id !== id);
   shards();
+  music(id === 'game' ? 'calm' : 'title');
 }
 
 function store(key, value) {
@@ -97,11 +99,12 @@ async function ensureBoard() {
   try {
     const mod = await import('./board3d.js');
     app.board = mod.createBoard($('#view'));
+    app.board.onGrab = () => sfx('grab');
     app.board.onRouteDrop = (route, moved) => {
       if (!app.view || app.view.phase !== 'load' || me().load) return;
       if (route) {
         app.sel.route = route;
-        sfx('ok');
+        sfx('drop');
         toast(`${E.ROUTE_BY_ID[route].name} を選びました`);
       } else if (moved) toast('ルートの出発地点(六角形の台)の上で離してください');
       renderAll();
@@ -220,10 +223,12 @@ function onUpdate({ lobby, view }) {
     app.resultClosed = false;
   }
   const first = !app.view;
+  const prevView = app.view;
   app.view = view;
   if (first) enterGame();
   // 再接続などで、すでに終わった検問を何度も見ないように
   if (first && view.resolution && view.phase !== 'launder') app.animRound = view.resolution.round;
+  if (!first && view.phase === 'market' && view.turn === view.you && (prevView.turn !== view.you || prevView.phase !== 'market')) sfx('turn');
   const key = `${view.round}-${view.phase}`;
   if (key !== app.phaseKey) {
     const prev = app.phaseKey;
@@ -260,6 +265,7 @@ function onPhaseChange() {
   app.launderAmount = null;
   const tab = { market: 'market', load: 'cargo', ops: 'ops', launder: 'map', end: 'map' }[v.phase];
   if (tab && !(v.phase === 'launder' && app.animating)) setTab(tab, false);
+  if (v.phase === 'market') sfx('round');
   if (v.phase === 'market' && v.round > 1) coach('market2');
   else if (v.phase !== 'launder') coach(v.phase);
 }
@@ -283,6 +289,14 @@ function setTab(tab, withFx = true) {
 function renderAll() {
   const v = app.view;
   if (!v) return;
+  // 描き直しても、それぞれの欄のスクロール位置を保つ(CPU が動くたびに上へ戻らないように)
+  const scrolls = $$('#game .panel, #tabBody').map((el) => [el, el.scrollTop]);
+  renderAllInner();
+  for (const [el, top] of scrolls) el.scrollTop = top;
+}
+
+function renderAllInner() {
+  const v = app.view;
   renderPhaseTrack();
   renderTabAlerts();
   renderStatus();
@@ -631,7 +645,7 @@ function renderOps() {
     b.onclick = () => {
       app.sel.placements.push({ hand: app.sel.ops, route: b.dataset.put });
       app.sel.ops = null;
-      sfx('ok');
+      sfx('place');
       renderAll();
     };
   for (const b of $$('#opsDetail [data-unplace]'))
@@ -672,7 +686,7 @@ function renderSystem() {
   const items = [
     ['rules', 'ルールブック'],
     ['slides', 'チュートリアルを見る'],
-    ['sound', `効果音:${soundOn() ? 'ON' : 'OFF'}`],
+    ['audio', 'サウンド設定'],
     ...(app.mode === 'online' ? [['room', '部屋の情報']] : []),
     ['title', 'タイトルに戻る'],
   ];
@@ -681,13 +695,31 @@ function renderSystem() {
     b.onclick = () => {
       const k = b.dataset.sys;
       sfx('move');
-      if (k === 'sound') { setSound(!soundOn()); renderSystem(); return; }
       if (k === 'slides') { showSlides(false); return; }
       if (k === 'title') { confirmBox('タイトルに戻りますか?' + (app.mode === 'local' ? '(CPU対戦は「つづきから」で再開できます)' : '(オンラインの部屋からは抜けます)'), toTitle); return; }
       app.sel.systemItem = k;
       renderSystem();
     };
   const d = $('#systemDetail');
+  if (app.sel.systemItem === 'audio') {
+    const a = getSettings();
+    d.innerHTML = `<div class="panel-title">サウンド設定</div>
+      <div class="sub-title"><span>BGM(音楽)</span></div>
+      <div class="field"><div class="seg" id="bgmSeg"><button data-v="1" class="${a.bgm ? 'on' : ''}">ON</button><button data-v="0" class="${a.bgm ? '' : 'on'}">OFF</button></div>
+        音量<input type="range" class="range" id="bgmVol" min="0" max="1" step="0.05" value="${a.bgmVol}" style="margin:6px 0;width:100%"></div>
+      <div class="sub-title"><span>効果音(SE)</span></div>
+      <div class="field"><div class="seg" id="seSeg"><button data-v="1" class="${a.se ? 'on' : ''}">ON</button><button data-v="0" class="${a.se ? '' : 'on'}">OFF</button></div>
+        音量<input type="range" class="range" id="seVol" min="0" max="1" step="0.05" value="${a.seVol}" style="margin:6px 0;width:100%"></div>
+      <div class="row-btns"><button class="btn small" id="seTest">効果音を試す</button></div>
+      <p class="hint">BGM と効果音は、その場で合成しています(音のファイルは使っていません)。設定はこのブラウザに保存されます。</p>`;
+    $('#bgmSeg').onclick = (e) => { const b = e.target.closest('button'); if (b) { setSetting('bgm', b.dataset.v === '1'); renderSystem(); } };
+    $('#seSeg').onclick = (e) => { const b = e.target.closest('button'); if (b) { setSetting('se', b.dataset.v === '1'); renderSystem(); sfx('ok'); } };
+    $('#bgmVol').oninput = (e) => setSetting('bgmVol', Number(e.target.value));
+    $('#seVol').oninput = (e) => setSetting('seVol', Number(e.target.value));
+    $('#seVol').onchange = () => sfx('buy');
+    $('#seTest').onclick = () => { const k = ['buy', 'success', 'bust', 'dice', 'launder'][Math.floor(Math.random() * 5)]; sfx(k); };
+    return;
+  }
   if (app.sel.systemItem === 'room' && app.mode === 'online') {
     d.innerHTML = `<div class="panel-title">部屋の情報</div><div class="room-code">${esc(app.session.code)}</div><p class="hint">リロードしても、同じブラウザならこの部屋に戻れます。</p>`;
   } else {
@@ -710,9 +742,14 @@ function renderMapHud() {
     html = `<div class="panel-title">積載<small>トラックを運んでルート決定</small></div>
       ${app.boardFailed ? '<p class="hint">3D を読み込めなかったため、CARGO タブで選んでください。</p>' : '<p class="hint">光っている自分のトラックをつかんで、ルートの<b>出発地点(六角形の台)</b>へドラッグ。台をクリックしても選べます。</p>'}
       ${cargoChecklist(true)}
-      <div class="sub-title"><span>ルート</span><span>${app.sel.route ? E.ROUTE_BY_ID[app.sel.route].name : '未選択'}</span></div>
+      <div class="sub-title"><span>ルート(ボタンでも選べます)</span><span>${app.sel.route ? E.ROUTE_BY_ID[app.sel.route].name : '未選択'}</span></div>
+      <div class="route-pick">${E.ROUTES.map((r) => {
+        const cards = selectedCards();
+        const ch = cards.length ? E.passChance(m, E.runSetup(m, cards, r.id, [])) : 0;
+        return `<button class="route-card${app.sel.route === r.id ? ' on' : ''}" data-hroute="${r.id}"><span class="rl">${r.limit}</span><div class="rn">${r.short}</div><span class="pct">${cards.length ? '突破 ' + pct(ch) : '−'}</span></button>`;
+      }).join('')}</div>
       ${fc ? `<div style="display:flex;align-items:center;gap:10px;margin:0 14px">${donut(fc.pass, { size: 78 })}<div style="flex:1;font-size:13px">警戒度 ${fc.setup.heatBase}${m.heatPenalty ? '+' + m.heatPenalty : ''} / 上限 ${fc.setup.limit}<br>利益 +${man(fc.setup.profit)}<br>期待値 ${man(fc.ev)}</div></div>` : ''}
-      <div class="row-btns">${app.sel.cargo.size ? `<button class="btn primary" id="hudGo" ${app.sel.route ? '' : 'disabled'}>この内容で出発</button>` : m.cargo.length ? '' : '<button class="btn primary" id="hudRest">今回は休む</button>'}</div>`;
+      <div class="sticky-go"><div class="row-btns">${app.sel.cargo.size ? `<button class="btn primary" id="hudGo" ${app.sel.route ? '' : 'disabled'}>${app.sel.route ? 'この内容で出発' : 'ルートを選んでください'}</button>` : m.cargo.length ? '<span class="hint">積む貨物にチェックを入れてください</span> <button class="btn" id="hudRest">今回は休む</button>' : '<button class="btn primary" id="hudRest">今回は休む</button>'}</div></div>`;
   } else if (v.phase === 'ops' || v.phase === 'load') {
     html = `<div class="panel-title">${v.phase === 'ops' ? '工作フェーズ' : '積載フェーズ'}</div>
       <p>${v.phase === 'ops' ? (m.ops ? 'ほかのボスの工作を待っています…' : '<b>OPS</b> タブで工作カードを仕掛けてください。') : 'ほかのボスが積荷を決めるのを待っています…'}</p>
@@ -729,6 +766,12 @@ function renderMapHud() {
   }
   hud.innerHTML = html;
   bindChecklist(hud);
+  for (const b of $$('[data-hroute]', hud))
+    b.onclick = () => {
+      app.sel.route = b.dataset.hroute;
+      sfx('select');
+      renderAll();
+    };
   $('#hudGo')?.addEventListener('click', submitLoad);
   $('#hudRest')?.addEventListener('click', () => act({ type: 'load', cargo: [], route: null }));
   $('#hudOps')?.addEventListener('click', () => setTab('ops'));
@@ -801,6 +844,7 @@ async function playResolution() {
   app.skip = false;
   hideModal();
   setTab('map');
+  music('tense');
   coach('resolve');
   const b = app.board;
   const cp = $('#checkpoint');
@@ -847,7 +891,7 @@ async function playResolution() {
     draw(0);
     if (b) {
       b.focus(r.route, 24);
-      if (!app.skip) await b.drive(r.pid, r.route, 0.04, 0.42, 1400);
+      if (!app.skip) { engine(1.4); await b.drive(r.pid, r.route, 0.04, 0.42, 1400); }
     } else await wait(600);
     if (!flipped.has(r.route)) {
       flipped.add(r.route);
@@ -873,7 +917,7 @@ async function playResolution() {
       sfx('success');
       if (b) {
         b.lampColor(r.route, 0x2a6a2a);
-        if (!app.skip) await b.drive(r.pid, r.route, 0.42, 0.985, 1200);
+        if (!app.skip) { engine(1.2); await b.drive(r.pid, r.route, 0.42, 0.985, 1200); }
         b.coins(b.truckPos(r.pid));
         sfx('coin');
         b.lampColor(r.route, 0x000000);
@@ -894,6 +938,7 @@ async function playResolution() {
   b?.focus(null);
   app.animRound = res.round;
   app.animating = false;
+  music('calm');
   app.skip = false;
   app.cardSig = null;
   if (app.view.phase === 'launder') setTab('map', false);
@@ -983,6 +1028,10 @@ function renderLaunder() {
 function renderEnd() {
   const v = app.view;
   const fin = v.final || [];
+  if (app.endSound !== v.final) {
+    app.endSound = v.final;
+    sfx(fin[0] && fin[0].id === v.you ? 'win' : 'lose');
+  }
   const max = Math.max(1, ...fin.map((f) => f.total));
   const isHost = app.mode === 'local' || app.session?.seat === 0;
   showModal(
@@ -1033,11 +1082,11 @@ async function act(action) {
   app.sending = true;
   try {
     await app.session.send(action);
-    sfx('ok');
+    sfx({ buy: 'buy', launder: 'launder', pass: 'back' }[action.type] || 'ok');
     return true;
   } catch (e) {
     toast(e.message, true);
-    sfx('back');
+    sfx('error');
     return false;
   } finally {
     app.sending = false;
@@ -1214,8 +1263,14 @@ document.addEventListener('mouseover', (e) => {
   }
 });
 
+// ブラウザの決まりで、最初の操作のあとでないと音が出ないので、操作のたびに音を起こす
+document.addEventListener('pointerdown', unlock, true);
+document.addEventListener('keydown', unlock, true);
+
 // ---- 起動 ----
 (async function boot() {
+  music('title');
+  if (new URLSearchParams(location.search).has('debug')) window.__bh = app; // 動作確認用
   const savedName = load('bh-name');
   if (savedName) {
     $('#lobbyName').value = savedName;
