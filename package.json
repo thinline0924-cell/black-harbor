@@ -1,0 +1,17 @@
+{
+  "name": "black-harbor",
+  "version": "1.0.0",
+  "description": "BLACK HARBOR 闇ブローカーたちの狂宴 — 密輸と心理戦の対戦ボードゲーム(CPU対戦・オンライン対戦)",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}

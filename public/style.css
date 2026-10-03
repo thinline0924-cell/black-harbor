@@ -1,0 +1,385 @@
+/* BLACK HARBOR — 見た目
+   ベージュの紙のような背景に、こげ茶の帯。ゲーム機のメニュー画面のような雰囲気にしています。 */
+:root {
+  --bg: #cdc8b0;
+  --bg2: #d6d1bb;
+  --panel: rgba(218, 213, 194, 0.94);
+  --ink: #4b483e;
+  --ink2: #6f6b5d;
+  --hi: #4e4b42;
+  --hi-text: #dcd7c2;
+  --line: #8d8875;
+  --tab: #bab59d;
+  --red: #b2523f;
+  --green: #5d7d55;
+  --gold: #a8873a;
+  --font: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+  --mono: 'Share Tech Mono', 'Noto Sans JP', monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+button { font: inherit; color: inherit; letter-spacing: inherit; cursor: pointer; }
+input { font: inherit; color: var(--ink); letter-spacing: 0.05em; }
+.hidden { display: none !important; }
+
+/* ---- 3D と演出 ---- */
+#view { position: fixed; inset: 0; z-index: 0; }
+#view canvas { display: block; touch-action: none; }
+#shards { position: fixed; inset: 0; z-index: 40; pointer-events: none; width: 100%; height: 100%; }
+
+/* うっすらした走査線 */
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 60; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(60, 55, 40, 0.035) 0 1px, transparent 1px 3px);
+}
+
+.boot {
+  position: fixed; inset: 0; z-index: 80; display: grid; place-items: center;
+  background: var(--bg); font-family: var(--mono); font-size: 22px; letter-spacing: 0.4em; color: var(--ink);
+  transition: opacity 0.5s;
+}
+.boot span { animation: blink 1s steps(2) infinite; }
+.boot.done { opacity: 0; pointer-events: none; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ---- 画面の共通部品 ---- */
+.screen {
+  position: fixed; inset: 0; z-index: 10;
+  display: flex; flex-direction: column;
+  padding: 18px 28px 14px;
+  background: linear-gradient(180deg, rgba(205, 200, 176, 0.97), rgba(200, 195, 170, 0.97));
+}
+#game.screen { background: transparent; pointer-events: none; }
+#game.screen > * { pointer-events: auto; }
+#game.screen.paper { background: linear-gradient(180deg, rgba(205, 200, 176, 0.96), rgba(198, 193, 168, 0.96)); }
+
+/* 「・:・」の点線の帯 */
+.dots {
+  height: 14px; flex: none; margin: 8px 0;
+  border-top: 2px solid var(--ink);
+  background:
+    radial-gradient(circle, var(--ink) 1.6px, transparent 2px) 0 4px / 64px 8px repeat-x,
+    radial-gradient(circle, var(--ink) 1.6px, transparent 2px) 10px 4px / 64px 8px repeat-x,
+    radial-gradient(circle, var(--ink) 1.6px, transparent 2px) 5px 9px / 64px 8px repeat-x;
+  opacity: 0.75;
+}
+.dots.bottom { border-top: none; border-bottom: 2px solid var(--ink); margin-top: auto; }
+#game .dots { background-color: transparent; }
+
+.page-head { display: flex; align-items: baseline; gap: 10px; margin: 6px 0 10px 4px; }
+.page-head .big { font-size: 46px; font-weight: 300; letter-spacing: 0.06em; line-height: 1; text-shadow: 3px 3px 0 rgba(75, 72, 62, 0.18); }
+.page-head .small { font-size: 18px; font-weight: 500; }
+
+.msgbar {
+  flex: none; display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  margin-top: 8px; padding: 10px 18px; min-height: 46px;
+  border-left: 8px solid var(--hi);
+  background: var(--panel);
+  box-shadow: 4px 4px 0 rgba(75, 72, 62, 0.25);
+  font-size: 15px;
+}
+.msgbar .keys { font-size: 14px; white-space: nowrap; color: var(--ink2); display: flex; gap: 12px; }
+.link { background: none; border: none; padding: 0; text-decoration: underline; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid rgba(75, 72, 62, 0.35);
+  box-shadow: 5px 5px 0 rgba(75, 72, 62, 0.22);
+  padding: 0 0 14px;
+  min-height: 0;
+  overflow: auto;
+}
+.panel-title {
+  background: var(--hi); color: var(--hi-text);
+  padding: 7px 14px; font-size: 16px; font-weight: 500; letter-spacing: 0.12em;
+  position: sticky; top: 0; z-index: 2;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.panel-title small { font-size: 12px; opacity: 0.8; }
+.panel .sub-title { margin: 14px 14px 6px; padding-bottom: 4px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--ink2); display: flex; justify-content: space-between; }
+.panel p, .panel .pad { margin: 10px 14px; font-size: 14px; line-height: 1.7; }
+
+.btn {
+  border: 1px solid var(--ink); background: var(--bg2); padding: 9px 22px; font-size: 15px;
+  box-shadow: 3px 3px 0 rgba(75, 72, 62, 0.3); transition: background 0.12s, color 0.12s, transform 0.1s;
+}
+.btn:hover, .btn:focus-visible { background: var(--hi); color: var(--hi-text); outline: none; }
+.btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 rgba(75, 72, 62, 0.3); }
+.btn.primary { background: var(--hi); color: var(--hi-text); }
+.btn.primary:hover { background: #2f2d27; }
+.btn.small { padding: 6px 14px; font-size: 13px; }
+.btn[disabled] { opacity: 0.4; pointer-events: none; }
+.row-btns { display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap; margin: 14px; }
+
+/* ---- タイトル ---- */
+#title { justify-content: center; background: linear-gradient(90deg, rgba(205, 200, 176, 0.97) 0 38%, rgba(205, 200, 176, 0.5) 100%); }
+.title-box { margin: auto 0; padding-left: 6vw; }
+.title-sub { font-size: 18px; letter-spacing: 0.5em; margin-bottom: 6px; }
+.title-logo { margin: 0; font-size: clamp(44px, 9vw, 104px); font-weight: 300; letter-spacing: 0.12em; line-height: 1.05; text-shadow: 5px 5px 0 rgba(75, 72, 62, 0.16); }
+.title-meta { margin: 8px 0 28px; font-size: 14px; color: var(--ink2); }
+.menu-list { list-style: none; margin: 0; padding: 0; max-width: 460px; }
+.menu-list li { margin: 6px 0; }
+.menu-list button {
+  width: 100%; text-align: left; border: none; background: rgba(186, 181, 157, 0.7);
+  padding: 11px 16px; font-size: 18px; display: flex; align-items: center; gap: 12px; position: relative;
+  transition: background 0.12s, color 0.12s;
+}
+.menu-list button small { margin-left: auto; font-size: 12px; opacity: 0.75; }
+.menu-list button .ic { font-size: 14px; }
+.menu-list button:hover, .menu-list button:focus-visible { background: var(--hi); color: var(--hi-text); outline: none; }
+.menu-list button:hover::before, .menu-list button:focus-visible::before {
+  content: '◆'; position: absolute; left: -26px; color: var(--ink); font-size: 16px;
+}
+
+/* ---- 設定・ロビー ---- */
+.setup-body { flex: 1; display: grid; place-items: center; overflow: auto; }
+.setup-body .panel { width: min(520px, 100%); }
+.field { display: block; margin: 14px; font-size: 14px; }
+.field input { display: block; width: 100%; margin-top: 6px; padding: 9px 12px; border: 1px solid var(--ink); background: #e6e2d0; font-size: 16px; }
+.seg { display: flex; margin-top: 6px; border: 1px solid var(--ink); }
+.seg button { flex: 1; border: none; background: #e2dec9; padding: 9px; }
+.seg button + button { border-left: 1px solid var(--ink); }
+.seg button.on { background: var(--hi); color: var(--hi-text); }
+.or { text-align: center; color: var(--ink2); font-size: 13px; }
+.room-code { font-family: var(--mono); font-size: 54px; letter-spacing: 0.35em; text-align: center; margin: 14px 0 4px; }
+.hint { font-size: 13px !important; color: var(--ink2); }
+.share { display: flex; gap: 8px; margin: 0 14px; }
+.share input { flex: 1; padding: 6px 8px; border: 1px solid var(--line); background: #e6e2d0; font-size: 12px; }
+.seat-list { list-style: none; margin: 8px 14px; padding: 0; }
+.seat-list li { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-bottom: 1px dashed var(--line); font-size: 15px; }
+.seat-list .chip { width: 14px; height: 14px; border: 1px solid var(--ink); }
+.seat-list .tag { margin-left: auto; font-size: 12px; color: var(--ink2); }
+
+/* ---- ルール ---- */
+.rules-body { flex: 1; overflow: auto; padding: 0 4px 10px; }
+.rules-body .panel { max-width: 980px; margin: 0 auto 16px; }
+.rules-body table, .sys-table { border-collapse: collapse; width: calc(100% - 28px); margin: 8px 14px; font-size: 13px; }
+.rules-body th, .rules-body td, .sys-table th, .sys-table td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+.rules-body th, .sys-table th { font-weight: 500; color: var(--ink2); }
+.formula { margin: 10px 14px; padding: 12px; border: 1px dashed var(--ink); background: #e3dfcb; font-size: 15px; text-align: center; line-height: 1.8; }
+
+/* ---- ゲーム画面 ---- */
+.tabs { display: flex; gap: 10px; flex: none; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button {
+  flex: 1 0 auto; min-width: 104px; border: none; background: var(--tab); padding: 8px 12px;
+  font-size: 19px; letter-spacing: 0.1em; display: flex; align-items: center; gap: 8px; justify-content: center;
+  box-shadow: 3px 3px 0 rgba(75, 72, 62, 0.2); position: relative;
+}
+.tabs button i { font-style: normal; display: inline-grid; place-items: center; width: 22px; height: 22px; background: var(--ink); color: var(--tab); font-size: 13px; }
+.tabs button.on { background: var(--hi); color: var(--hi-text); }
+.tabs button.on i { background: var(--hi-text); color: var(--hi); }
+.tabs button.alert::after { content: ''; position: absolute; top: 4px; right: 6px; width: 8px; height: 8px; background: var(--red); transform: rotate(45deg); animation: blink 1s steps(2) infinite; }
+.tabs button:hover:not(.on) { background: #a9a48b; }
+
+.game-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; flex: none; }
+.phase-track { list-style: none; display: flex; gap: 4px; margin: 0 0 12px; padding: 0; font-size: 12px; align-items: center; }
+.phase-track li { padding: 4px 10px; background: rgba(186, 181, 157, 0.85); white-space: nowrap; }
+.phase-track li.round { background: none; font-family: var(--mono); font-size: 15px; letter-spacing: 0.15em; }
+.phase-track li.on { background: var(--hi); color: var(--hi-text); }
+.phase-track li.done { opacity: 0.55; }
+
+.tab-body { flex: 1; min-height: 0; position: relative; }
+.tab-pane { position: absolute; inset: 0; display: none; }
+.tab-pane.on { display: block; }
+.tab-pane.cols.on { display: grid; grid-template-columns: minmax(250px, 1fr) minmax(320px, 1.35fr) minmax(250px, 1fr); gap: 22px; }
+.tab-pane.cols.wide.on { grid-template-columns: 1fr 1fr; }
+.tab-pane[data-pane='system'].on { grid-template-columns: minmax(240px, 0.8fr) 2.2fr; }
+
+/* 左の一覧 */
+.list-group { margin: 12px 14px 4px; font-size: 12px; color: var(--ink2); display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 3px; }
+.item {
+  display: flex; align-items: center; gap: 10px; width: calc(100% - 28px); margin: 5px 14px; padding: 8px 10px;
+  border: none; background: transparent; text-align: left; font-size: 15px; position: relative;
+  border-bottom: 1px solid rgba(75, 72, 62, 0.2);
+}
+.item:hover { background: rgba(78, 75, 66, 0.12); }
+.item.sel { background: var(--hi); color: var(--hi-text); }
+.item.sel::before { content: '◆'; position: absolute; left: -15px; color: var(--ink); font-size: 12px; }
+.item .num { margin-left: auto; font-family: var(--mono); font-size: 15px; }
+.item.dim { opacity: 0.45; }
+.item .check { width: 16px; height: 16px; border: 1.5px solid currentColor; flex: none; display: grid; place-items: center; font-size: 12px; }
+.item .tagline { font-size: 11px; opacity: 0.75; }
+.glyph {
+  width: 24px; height: 24px; flex: none; display: grid; place-items: center; font-size: 12px; font-weight: 700;
+  border: 1.5px solid currentColor; transform: rotate(45deg);
+}
+.glyph b { transform: rotate(-45deg); font-weight: 700; }
+
+/* 中央の詳細 */
+.detail-art {
+  margin: 14px; height: 170px; background: #bdb8a2; position: relative; overflow: hidden;
+  display: grid; place-items: center;
+}
+.detail-art .big-glyph { width: 92px; height: 92px; border: 5px solid #d9d4bf; transform: rotate(45deg); display: grid; place-items: center; }
+.detail-art .big-glyph b { transform: rotate(-45deg); font-size: 40px; color: #d9d4bf; font-weight: 700; }
+.detail-art .sun { position: absolute; left: 30%; top: 20%; width: 18px; height: 18px; background: #d9d4bf; border-radius: 50%; }
+.detail-art .kind { position: absolute; right: 10px; bottom: 6px; font-family: var(--mono); color: #e6e2d0; font-size: 13px; letter-spacing: 0.3em; }
+.detail-text { margin: 4px 14px 10px; font-size: 14px; line-height: 1.7; min-height: 46px; }
+
+.stat-row { display: grid; grid-template-columns: 92px 1fr auto; align-items: center; gap: 10px; margin: 7px 14px; font-size: 13px; }
+.stat-row .val { min-width: 56px; white-space: nowrap; text-align: right; font-family: var(--mono); font-size: 15px; }
+.bar { height: 10px; background: rgba(75, 72, 62, 0.15); position: relative; overflow: hidden; }
+.bar > span { position: absolute; inset: 0 auto 0 0; background: var(--ink); transition: width 0.4s; }
+.bar.red > span { background: var(--red); }
+.bar.green > span { background: var(--green); }
+.bar.gold > span { background: var(--gold); }
+.slots { display: flex; gap: 6px; margin: 8px 14px; flex-wrap: wrap; }
+.slot { width: 26px; height: 26px; border: 1.5px solid var(--ink); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.slot.full { background: var(--hi); color: var(--hi-text); }
+.big-num { font-family: var(--mono); font-size: 46px; line-height: 1; }
+.big-num small { font-size: 18px; }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 14px; }
+.kpi { border: 1px solid var(--line); padding: 8px 10px; background: rgba(230, 226, 208, 0.6); }
+.kpi .k { font-size: 11px; color: var(--ink2); }
+.kpi .v { font-family: var(--mono); font-size: 24px; }
+.kpi .v.red { color: var(--red); }
+.kpi .v.green { color: var(--green); }
+.count-foot { text-align: right; margin: 8px 14px; font-size: 14px; }
+
+/* ルート選び */
+.route-pick { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 10px 14px; }
+.route-card { border: 1px solid var(--ink); background: #e3dfcb; padding: 8px 10px; text-align: left; font-size: 13px; position: relative; }
+.route-card.on { background: var(--hi); color: var(--hi-text); }
+.route-card .rn { font-size: 15px; font-weight: 500; }
+.route-card .rl { font-family: var(--mono); float: right; font-size: 15px; }
+.route-card .bar { margin-top: 6px; }
+.route-card.on .bar { background: rgba(220, 215, 194, 0.25); }
+.route-card.on .bar > span { background: var(--hi-text); }
+.route-card .pct { font-family: var(--mono); font-size: 12px; }
+
+/* 工作 */
+.ops-route { margin: 10px 14px; border: 1px solid var(--line); background: rgba(227, 223, 203, 0.7); }
+.ops-route .orh { display: flex; justify-content: space-between; padding: 6px 10px; background: rgba(78, 75, 66, 0.12); font-size: 14px; }
+.ops-route .runner { display: grid; grid-template-columns: 14px 1fr 1.2fr 46px; gap: 8px; align-items: center; padding: 5px 10px; font-size: 13px; }
+.ops-route .placed { display: flex; gap: 6px; padding: 4px 10px 8px; flex-wrap: wrap; }
+.ops-route .placed .mini { font-size: 12px; padding: 2px 8px; background: var(--hi); color: var(--hi-text); cursor: pointer; }
+.ops-route .placed .mini.other { background: #a9a48b; color: var(--ink); cursor: default; }
+.ops-route button.put { border: 1px dashed var(--ink); background: transparent; font-size: 12px; padding: 2px 10px; }
+.ops-route button.put:hover { background: var(--hi); color: var(--hi-text); }
+.chip { display: inline-block; width: 12px; height: 12px; border: 1px solid var(--ink); }
+
+/* 右のステータス */
+.status-head { display: flex; justify-content: space-between; margin: 10px 14px 4px; font-size: 15px; }
+.status-head .lv { font-family: var(--mono); }
+.rivals { margin: 6px 14px; }
+.rival { display: grid; grid-template-columns: 12px 1fr auto auto; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
+.rival .m { font-family: var(--mono); font-size: 13px; }
+.rival .ready { font-size: 11px; padding: 1px 6px; background: var(--hi); color: var(--hi-text); }
+.rival .ready.wait { background: transparent; color: var(--ink2); border: 1px solid var(--line); }
+.no-error { text-align: center; font-family: var(--mono); font-size: 12px; letter-spacing: 0.3em; color: var(--ink2); margin-top: 12px; }
+
+/* MAP の上の操作盤 */
+.map-hud {
+  position: absolute; right: 0; top: 0; width: min(380px, 100%); max-height: 100%; overflow: auto;
+  background: var(--panel); border: 1px solid rgba(75, 72, 62, 0.35); box-shadow: 5px 5px 0 rgba(75, 72, 62, 0.22);
+  padding-bottom: 12px;
+}
+.map-hud:empty { display: none; }
+.map-help { position: absolute; left: 0; bottom: 0; font-size: 12px; background: rgba(218, 213, 194, 0.85); padding: 4px 10px; }
+.legend { margin: 8px 14px; font-size: 13px; }
+.legend div { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
+
+/* 検問の結果の窓 */
+#checkpoint {
+  position: fixed; left: 50%; top: 16%; transform: translateX(-50%); z-index: 30;
+  width: min(560px, calc(100% - 32px));
+  background: var(--panel); border: 1px solid var(--ink); box-shadow: 6px 6px 0 rgba(75, 72, 62, 0.3);
+  animation: pop 0.25s ease-out;
+}
+#checkpoint .cp-body { padding: 10px 14px 14px; }
+#checkpoint .eq { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; font-family: var(--mono); font-size: 20px; margin: 8px 0; }
+#checkpoint .eq .t { display: flex; flex-direction: column; align-items: center; padding: 4px 8px; border: 1px solid var(--line); background: #e3dfcb; min-width: 56px; }
+#checkpoint .eq .t small { font-family: var(--font); font-size: 10px; color: var(--ink2); }
+#checkpoint .eq .t.wait { animation: blink 0.6s steps(2) infinite; }
+#checkpoint .verdict { text-align: center; font-size: 30px; letter-spacing: 0.3em; margin: 6px 0; }
+#checkpoint .verdict.ok { color: var(--green); }
+#checkpoint .verdict.ng { color: var(--red); animation: shake 0.4s; }
+#checkpoint .events { font-size: 13px; margin: 4px 0 0; padding-left: 18px; }
+#checkpoint .gauge { position: relative; height: 16px; margin: 8px 0; background: rgba(75, 72, 62, 0.12); }
+#checkpoint .gauge .fill { position: absolute; inset: 0 auto 0 0; background: var(--ink); transition: width 0.6s; }
+#checkpoint .gauge .fill.ng { background: var(--red); }
+#checkpoint .gauge .lim { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--red); }
+#checkpoint .gauge .lim::after { content: '上限'; position: absolute; top: 18px; left: -12px; white-space: nowrap; font-size: 11px; font-family: var(--mono); color: var(--red); }
+#checkpoint .opscards { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin: 6px 0; }
+#checkpoint .opscards span { font-size: 12px; padding: 3px 8px; border: 1px solid var(--ink); background: #e3dfcb; }
+#checkpoint .opscards span.off { text-decoration: line-through; opacity: 0.5; }
+@keyframes pop { from { transform: translateX(-50%) scale(0.92); opacity: 0; } }
+@keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+
+/* 小窓 */
+.modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(60, 56, 46, 0.35); padding: 16px; }
+.modal-box { width: min(640px, 100%); max-height: calc(100% - 20px); overflow: auto; background: var(--panel); border: 1px solid var(--ink); box-shadow: 8px 8px 0 rgba(40, 38, 30, 0.35); animation: rise 0.25s ease-out; }
+@keyframes rise { from { transform: translateY(12px); opacity: 0; } }
+.range { width: calc(100% - 28px); margin: 8px 14px; accent-color: var(--hi); }
+
+/* チュートリアル */
+.coach {
+  position: fixed; left: 28px; bottom: 86px; z-index: 45; width: min(400px, calc(100% - 32px));
+  background: var(--hi); color: var(--hi-text); box-shadow: 6px 6px 0 rgba(40, 38, 30, 0.35);
+  animation: rise 0.25s ease-out;
+}
+.coach-head { padding: 6px 12px; font-family: var(--mono); letter-spacing: 0.3em; border-bottom: 1px solid rgba(220, 215, 194, 0.3); display: flex; justify-content: space-between; }
+.coach-text { padding: 10px 14px; font-size: 14px; line-height: 1.75; }
+.coach-text b { color: #fff3c9; font-weight: 500; }
+.coach-btns { display: flex; justify-content: flex-end; padding: 0 12px 12px; }
+.coach .btn { background: var(--hi-text); color: var(--hi); }
+.focus-ring { outline: 3px solid var(--red) !important; outline-offset: 3px; animation: ring 1s ease-in-out infinite; }
+@keyframes ring { 50% { outline-color: transparent; } }
+
+.slides { padding: 0 0 6px; }
+.slide-art { margin: 14px; background: #bdb8a2; min-height: 180px; display: grid; place-items: center; padding: 12px; }
+.slide-art svg { width: 100%; max-height: 220px; }
+.slide-dots { display: flex; gap: 6px; justify-content: center; margin: 8px; }
+.slide-dots i { width: 8px; height: 8px; border: 1px solid var(--ink); transform: rotate(45deg); }
+.slide-dots i.on { background: var(--ink); }
+
+.toast {
+  position: fixed; left: 50%; top: 84px; transform: translateX(-50%); z-index: 70;
+  background: var(--hi); color: var(--hi-text); padding: 10px 20px; font-size: 14px; box-shadow: 4px 4px 0 rgba(40, 38, 30, 0.3);
+  animation: rise 0.2s ease-out; max-width: calc(100% - 32px);
+}
+.toast.err { background: var(--red); color: #fff; }
+
+/* グラフ */
+.chart { display: block; width: calc(100% - 28px); margin: 6px 14px; overflow: visible; }
+.chart text { font-family: var(--mono); font-size: 11px; fill: var(--ink2); letter-spacing: 0; }
+.chart .axis { stroke: var(--line); stroke-width: 1; }
+.chart .grid { stroke: rgba(75, 72, 62, 0.15); stroke-dasharray: 2 3; }
+.chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 4px 14px; font-size: 12px; }
+.chart-legend span { display: inline-flex; align-items: center; gap: 5px; }
+
+/* ---- スマホなど狭い画面 ---- */
+@media (max-width: 900px) {
+  .screen { padding: 10px 12px 10px; }
+  .page-head .big { font-size: 30px; }
+  .tabs button { min-width: 0; font-size: 13px; padding: 7px 8px; gap: 4px; }
+  .tabs button i { width: 16px; height: 16px; font-size: 10px; }
+  .phase-track { font-size: 11px; flex-wrap: wrap; }
+  .tab-body { overflow: auto; }
+  .tab-pane.on { position: static; }
+  .tab-pane[data-pane='map'].on { position: absolute; }
+  .tab-pane.cols.on, .tab-pane.cols.wide.on, .tab-pane[data-pane='system'].on { display: flex; flex-direction: column; gap: 14px; }
+  .panel { overflow: visible; }
+  .map-hud { top: auto; bottom: 26px; max-height: 52%; width: 100%; }
+  .msgbar { font-size: 13px; padding: 8px 12px; }
+  .msgbar .keys { display: none; }
+  .coach { left: 16px; bottom: 70px; }
+  .title-box { padding-left: 4vw; }
+  .menu-list button { font-size: 16px; }
+  .menu-list button:hover::before { display: none; }
+  .route-pick { grid-template-columns: 1fr; }
+  #checkpoint { top: 10%; }
+}
+.modal-box p { margin: 10px 14px; font-size: 14px; line-height: 1.7; }
