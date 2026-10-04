@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
   <script type="importmap">
   {
     "imports": {
@@ -105,6 +105,10 @@
     <ol class="race-board" id="raceBoard"></ol>
     <div class="race-bar"><div class="race-progress" id="raceProgress"></div></div>
     <div class="race-talk" id="raceTalk"></div>
+    <div class="spurt hidden" id="spurtBox">
+      <div class="spurt-gauge"><span class="spurt-ideal" id="spurtIdeal"></span><span class="spurt-now" id="spurtNow">🐴</span></div>
+      <div class="row"><span class="muted" id="spurtHint"></span><button id="spurtBtn">💨 スパート!<small>Space</small></button></div>
+    </div>
     <div class="race-buttons">
       <button id="raceSpeed">はやおくり ×1</button>
       <button id="raceSkip">結果へ</button>
@@ -134,6 +138,6 @@
   </svg>
 
   <noscript>このゲームを遊ぶには JavaScript を有効にしてください。</noscript>
-  <script type="module" src="js/main.js?v=4"></script>
+  <script type="module" src="js/main.js?v=5"></script>
 </body>
 </html>

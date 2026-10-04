@@ -4,11 +4,11 @@
 import {
   WEEKS_PER_YEAR, STATS, PLANS, PEOPLE, JOCKEYS, HEART_EVENTS, RENTAL_STUDS, HORSE_NAMES, NAME_HEAD, NAME_TAIL,
   NPC_HEAD, NPC_TAIL, RIVAL_NAMES, STAKES, CLASSES, GRADE_LEVEL, GRADE_LEVEL_2YO, GRADE_LEVEL_3YO, FACILITIES,
-  RANDOM_EVENTS, GOALS, COAT_KEYS, PERSONALITIES, STYLE_LABEL, MOOD_LABEL, TALK,
-} from './data.js?v=4';
+  RANDOM_EVENTS, GOALS, COAT_KEYS, PERSONALITIES, STYLE_LABEL, MOOD_LABEL, TALK, CHOICE_EVENTS, STAT_LABEL,
+} from './data.js?v=5';
 
 export const SAVE_VERSION = 1;
-export const BUILD = 4; // 版の番号(main.js の BUILD と同じにする)
+export const BUILD = 5; // 版の番号(main.js の BUILD と同じにする)
 
 // ---------- 小さな道具 ----------
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -36,7 +36,7 @@ const newId = (s) => `h${++s.seq}`;
 export function newGame({ ranchName = 'ひだまり牧場', ownerName = 'オーナー' } = {}) {
   const s = {
     version: SAVE_VERSION, seq: 0, ranchName, ownerName,
-    year: 1, week: 1, money: 3000, carrots: 10, careLeft: 3,
+    year: 1, week: 13, money: 3000, carrots: 10, careLeft: 3,
     horses: [], retired: [], trophies: [], log: [], album: [],
     people: {}, facilities: { stable: 1, track: 1, slope: 0, pool: 0, clinic: 0, hill: 0, windmill: 0 },
     goals: {}, flags: {}, market: [], history: [], yearStats: {},
@@ -45,11 +45,15 @@ export function newGame({ ranchName = 'ひだまり牧場', ownerName = 'オー�
   };
   for (const id of Object.keys(PEOPLE)) s.people[id] = { bond: id === 'haru' ? 10 : 0, talked: false, gifted: false, seen: [] };
   // はじめの馬たち
-  s.horses.push(makeHorse(s, { name: 'コハルビヨリ', sex: '牝', birthYear: -1, coat: 'kurige', growth: 'normal', dist: 1700, surface: 'turf', style: 'senko', personality: 'あまえんぼう', capBase: 70, blaze: true }));
+  // コハルビヨリは3歳。もうデビューしていて、すぐ未勝利戦に出られる
+  const koharu = makeHorse(s, { name: 'コハルビヨリ', sex: '牝', birthYear: -2, coat: 'kurige', growth: 'normal', dist: 1700, surface: 'turf', style: 'senko', personality: 'あまえんぼう', capBase: 70, blaze: true, statRatio: 0.69, bond: 25 });
+  koharu.record = { starts: 1, wins: 0, places: 0, earnings: 0, big: [] };
+  koharu.memories.push('0年目 デビュー戦 4着');
+  s.horses.push(koharu);
   s.horses.push(makeHorse(s, { name: 'ドングリ', sex: '牡', birthYear: -1, coat: 'kage', growth: 'early', dist: 1400, surface: 'dirt', style: 'nige', personality: 'やんちゃ', capBase: 66 }));
   s.horses.push(makeHorse(s, { name: 'マツボックリ', sex: '牡', birthYear: 0, coat: 'ashige', growth: 'late', dist: 2400, surface: 'turf', style: 'sashi', personality: 'のんびり', capBase: 69 }));
   const mare = makeHorse(s, { name: 'ハナミチ', sex: '牝', birthYear: -6, coat: 'tochikurige', growth: 'normal', dist: 2000, surface: 'turf', style: 'senko', personality: 'まじめ', capBase: 70, role: 'brood' });
-  mare.pregnant = { studName: 'ノハラノカゼ', stud: RENTAL_STUDS[0], dueYear: 1, dueWeek: 11 };
+  mare.pregnant = { studName: 'ノハラノカゼ', stud: RENTAL_STUDS[0], dueYear: 1, dueWeek: 15 };
   mare.record = { starts: 18, wins: 4, places: 6, earnings: 8200, big: ['うみかぜ記念'] };
   s.horses.push(mare);
   for (const h of s.horses) { h.plan = h.role === 'race' ? 'mix' : 'pasture'; h.auto = h.role !== 'brood'; }
@@ -96,7 +100,8 @@ export const findHorse = (s, id) => s.horses.find((h) => h.id === id);
 export const capacity = (s) => 3 + s.facilities.stable * 3;
 export const stallsUsed = (s) => s.horses.length;
 export const bondOf = (s, pid) => s.people[pid]?.bond ?? 0;
-export const careMax = (s) => 3 + (bondOf(s, 'haru') >= 30 ? 1 : 0);
+export const weekKey = (s) => s.year * 100 + s.week;
+export const caredThisWeek = (s, h) => h.caredWeek === weekKey(s);
 
 export function rank(v) {
   if (v >= 90) return 'SS'; if (v >= 80) return 'S'; if (v >= 70) return 'A'; if (v >= 60) return 'B';
@@ -174,7 +179,6 @@ export function talk(s, pid) {
   const line = pick(TALK[pid][tier]);
   const out = [];
   raiseBond(s, pid, randi(2, 4), out);
-  if (pid === 'haru') completeGoal(s, 'talkHaru', out);
   return { ok: true, text: line, pid, goals: out };
 }
 
@@ -198,30 +202,77 @@ const CARE_TEXT = {
   carrot: ['ポリポリ…あっというまに食べた!', 'もっと欲しそうに鼻を鳴らしている。', 'しっぽをぶんぶん振ってよろこんでいる。'],
   walk: ['いっしょに牧場をのんびり歩いた。', '道ばたのクローバーに寄り道した。', 'あなたの歩幅に合わせて歩いてくれた。'],
 };
+// ふれあい:1頭につき1週間に1回(手間ポイントはなし)。kind を省くと、その馬が好きなことをする
 export function care(s, horseId, kind) {
   const h = findHorse(s, horseId);
   if (!h) return { ok: false, text: '馬が見つかりません。' };
-  if (s.careLeft <= 0) return { ok: false, text: '今週のお世話の手間ポイントがありません。「1週すすめる」と回復します。' };
-  if (kind === 'carrot' && s.carrots <= 0) return { ok: false, text: 'にんじんがありません。「町」で買えます。' };
-  s.careLeft--;
-  h.caredWeek = s.year * 100 + s.week;
+  if (caredThisWeek(s, h)) return { ok: false, text: `${h.name}とは今週もうふれあいました。また来週!` };
+  if (!kind) kind = h.personality === 'くいしんぼう' && s.carrots > 0 ? 'carrot' : h.personality === 'あまえんぼう' ? 'brush' : h.fatigue >= 40 ? 'walk' : pick(['brush', 'walk', s.carrots > 0 ? 'carrot' : 'brush']);
+  if (kind === 'carrot' && s.carrots <= 0) kind = 'brush';
+  h.caredWeek = weekKey(s);
   let bond = 0, mood = 0, fat = 0;
   if (kind === 'brush') { bond = h.personality === 'あまえんぼう' ? 7 : 4; mood = Math.random() < 0.5 ? 1 : 0; }
-  if (kind === 'carrot') { s.carrots--; bond = 2; mood = h.personality === 'くいしんぼう' ? 2 : 1; }
+  if (kind === 'carrot') { s.carrots--; bond = 3; mood = h.personality === 'くいしんぼう' ? 2 : 1; }
   if (kind === 'walk') { bond = 3; fat = -8; mood = Math.random() < 0.3 ? 1 : 0; }
   if (h.personality === 'さみしがり') bond = Math.round(bond * 1.5);
   h.bond = clamp(h.bond + bond, 0, 100);
   h.mood = clamp(h.mood + mood, 0, 4);
   h.fatigue = clamp(h.fatigue + fat, 0, 100);
-  const out = [];
-  if (kind === 'brush') completeGoal(s, 'brush', out);
   let text = `${h.name}は${pick(CARE_TEXT[kind])}`;
   if (kind === 'carrot' && h.personality === 'くいしんぼう') text = `${h.name}は目をきらきらさせて、にんじんにかぶりついた!`;
   const eff = [];
   if (bond) eff.push(`絆 +${bond}`);
-  if (mood) eff.push(`調子アップ`);
+  if (mood) eff.push('調子アップ');
   if (fat) eff.push(`疲れ ${fat}`);
-  return { ok: true, text, effect: eff.join(' / '), goals: out };
+  return { ok: true, kind, text, effect: eff.join(' / '), goals: [] };
+}
+// みんなとまとめてふれあう
+export function careAll(s) {
+  const list = [];
+  for (const h of s.horses) if (!caredThisWeek(s, h)) { const r = care(s, h.id); if (r.ok) list.push(r); }
+  return list;
+}
+
+// ---------- えらべるできごと ----------
+function pickChoiceEvent(s) {
+  const racers = s.horses.filter((h) => h.role === 'race' && !h.injury);
+  const foals = s.horses.filter((h) => h.role === 'foal');
+  const pool = CHOICE_EVENTS.map((e, i) => ({ e, i })).filter(({ e }) => jockeyAvailable(s, e.pid)
+    && (e.need === 'none' || (e.need === 'racer' && racers.length) || (e.need === 'foal' && foals.length) || (e.need === 'horse' && s.horses.length)));
+  if (!pool.length) return null;
+  const { e, i } = pick(pool);
+  const h = e.need === 'racer' ? pick(racers) : e.need === 'foal' ? pick(foals) : e.need === 'horse' ? pick(s.horses) : null;
+  return { type: 'choice', idx: i, horseId: h?.id || null };
+}
+export function choiceEventView(s, p) {
+  const e = CHOICE_EVENTS[p.idx];
+  const h = p.horseId ? findHorse(s, p.horseId) : null;
+  const fill = (t) => t.replaceAll('{h}', h ? h.name : '馬たち');
+  return { pid: e.pid, text: fill(e.text), choices: e.choices.map((c) => c.label), horse: h };
+}
+export function chooseEvent(s, p, choice) {
+  const e = CHOICE_EVENTS[p.idx];
+  const c = e.choices[choice] || e.choices[0];
+  const h = p.horseId ? findHorse(s, p.horseId) : null;
+  const out = [];
+  const eff = c.eff, notes = [];
+  if (h) {
+    if (eff.hbond) { h.bond = clamp(h.bond + eff.hbond, 0, 100); notes.push(`${h.name}の絆 +${eff.hbond}`); }
+    if (eff.mood) { h.mood = clamp(h.mood + eff.mood, 0, 4); notes.push('調子アップ'); }
+    if (eff.fat) { h.fatigue = clamp(h.fatigue + eff.fat, 0, 100); notes.push(`疲れ ${eff.fat > 0 ? '+' : ''}${eff.fat}`); }
+    if (eff.stat) {
+      const k = pick(STATS);
+      h.stats[k] = r1(Math.min(h.caps[k] + 2, h.stats[k] + eff.stat));
+      notes.push(`${STAT_LABEL[k]} +${eff.stat}`);
+    }
+    if (eff.jbond) { const [j, v] = eff.jbond; h.jbond[j] = clamp((h.jbond[j] || 0) + v, 0, 100); notes.push(`${PEOPLE[j].name}との息 +${v}`); }
+  }
+  if (eff.allBond) { for (const x of s.horses) x.bond = clamp(x.bond + eff.allBond, 0, 100); notes.push(`みんなの絆 +${eff.allBond}`); }
+  if (eff.money) { s.money += eff.money; notes.push(`${eff.money}万円`); }
+  if (eff.carrots) { s.carrots = Math.max(0, s.carrots + eff.carrots); notes.push(`にんじん ${eff.carrots > 0 ? '+' : ''}${eff.carrots}`); }
+  for (const pid of Object.keys(PEOPLE)) if (eff[pid]) { raiseBond(s, pid, eff[pid], out); notes.push(`${PEOPLE[pid].name}となかよし`); }
+  s.pending = s.pending.filter((x) => x !== p);
+  return { reply: c.reply.replaceAll('{h}', h ? h.name : '馬たち'), notes: notes.join(' / '), goals: out };
 }
 
 // ---------- 予定・レース登録 ----------
@@ -364,40 +415,51 @@ export function winChanceHint(s, h, race, jockeyId) {
 }
 
 // ---------- レースを走らせる ----------
-function npcName(used) {
-  for (let i = 0; i < 50; i++) {
-    const n = pick(NPC_HEAD) + pick(NPC_TAIL);
-    if (!used.has(n)) { used.add(n); return n; }
-  }
-  return 'ノーネーム' + used.size;
+// 同じ seed なら同じレースになる(スパートを押したとき、そこから先だけ変えて計算しなおすため)
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return () => { t = (t + 0x6d2b79f5) >>> 0; let x = Math.imul(t ^ (t >>> 15), 1 | t); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
 }
-export function runRace(s, race, entrants) {
-  // entrants: [{h, jockey}]
+export const TACTICS = ['nige', 'senko', 'sashi', 'oikomi'];
+// スパートが続く長さ(m)。スタミナが多いほど長くもつ
+export const spurtLength = (h) => Math.round(150 + h.stats.sta * 4);
+export const AUTO_SPURT = 200; // スパートを押さなかったときは、残り200mで自動でスパート
+
+// entrants: [{h, jockey}] / opts: { seed, tactic: {horseId: 作戦}, spurt: {horseId: 残り何mでスパート} }
+export function runRace(s, race, entrants, opts = {}) {
+  const seed = opts.seed ?? Math.floor(Math.random() * 1e9);
+  const R = mulberry32(seed);
+  const Rr = (a, b) => a + R() * (b - a);
+  const Ri = (a, b) => Math.floor(Rr(a, b + 1));
+  const Rp = (arr) => arr[Math.floor(R() * arr.length)];
+  const Rg = () => { let u = 0, v = 0; while (!u) u = R(); while (!v) v = R(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
   const lv = fieldLevel(race);
   const used = new Set(s.horses.map((h) => h.name));
   const runners = [];
   for (const e of entrants) {
     const h = e.h;
+    const tactic = opts.tactic?.[h.id] || h.style;
     runners.push({
-      own: true, horseId: h.id, name: h.name, coat: h.coat, blaze: h.blaze, style: h.style,
-      rating: raceRating(s, h, race, e.jockey) * (1 + gauss() * 0.015),
+      own: true, horseId: h.id, name: h.name, coat: h.coat, blaze: h.blaze, style: tactic,
+      rating: raceRating(s, h, race, e.jockey) * (1 + Rg() * 0.015) * (tactic === h.style ? 1 : 0.985),
       sta: clamp(h.stats.sta / (race.dist / 40), 0.55, 1.2), gut: h.stats.gut, wit: h.stats.wit,
       jockey: PEOPLE[e.jockey].name, jockeyId: e.jockey,
+      spurtAt: opts.spurt?.[h.id] ?? AUTO_SPURT, spurtLen: spurtLength(h),
     });
   }
-  const fieldSize = clamp(race.grade === 'G1' ? 16 : race.kind === 'stakes' ? 14 : randi(10, 14), entrants.length + 4, 18);
-  // ライバル(黒川の馬)は重賞にだけ出てくる
+  const fieldSize = clamp(race.grade === 'G1' ? 16 : race.kind === 'stakes' ? 14 : Ri(10, 14), entrants.length + 4, 18);
   if (race.kind === 'stakes') {
     const rn = RIVAL_NAMES[(s.year * 3 + race.week) % RIVAL_NAMES.length];
     used.add(rn);
-    runners.push({ own: false, rival: true, name: rn, coat: 'aoge', blaze: false, style: pick(['senko', 'sashi']), rating: lv + 3 + gauss() * 3, sta: rand(0.95, 1.15), gut: lv, wit: lv, jockey: '黒川厩舎の騎手' });
+    runners.push({ own: false, rival: true, name: rn, coat: 'aoge', blaze: false, style: Rp(['senko', 'sashi']), rating: lv + 3 + Rg() * 3, sta: Rr(0.95, 1.15), gut: lv, wit: lv, jockey: '黒川厩舎の騎手' });
   }
   while (runners.length < fieldSize) {
-    runners.push({ own: false, name: npcName(used), coat: pick(COAT_KEYS), blaze: Math.random() < 0.3, style: pick(['nige', 'senko', 'senko', 'sashi', 'sashi', 'oikomi']), rating: lv + gauss() * 4.5, sta: rand(0.8, 1.12), gut: lv, wit: lv, jockey: '' });
+    let name = 'ノーネーム';
+    for (let k = 0; k < 50; k++) { const n = Rp(NPC_HEAD) + Rp(NPC_TAIL); if (!used.has(n)) { used.add(n); name = n; break; } }
+    runners.push({ own: false, name, coat: Rp(COAT_KEYS), blaze: R() < 0.3, style: Rp(['nige', 'senko', 'senko', 'sashi', 'sashi', 'oikomi']), rating: lv + Rg() * 4.5, sta: Rr(0.8, 1.12), gut: lv, wit: lv, jockey: '' });
   }
-  // 枠順をシャッフル
-  for (let i = runners.length - 1; i > 0; i--) { const j = randi(0, i); [runners[i], runners[j]] = [runners[j], runners[i]]; }
-  runners.forEach((r, i) => { r.gate = i + 1; });
+  for (let i = runners.length - 1; i > 0; i--) { const j = Ri(0, i); [runners[i], runners[j]] = [runners[j], runners[i]]; }
+  runners.forEach((r, i) => { r.gate = i + 1; r.spurted = 0; });
 
   const D = race.dist, dt = 0.5;
   const pos = runners.map(() => 0), time = runners.map(() => null);
@@ -406,8 +468,8 @@ export function runRace(s, race, entrants) {
   let t = 0;
   while (time.some((x) => x == null) && t < 400) {
     t += dt;
-    const order = pos.map((p, i) => [p, i]).sort((a, b) => b[0] - a[0]);
     runners.forEach((r, i) => {
+      const noise = (R() - 0.5) * 0.004; // 乱数の使い方は毎回同じ順番(結果がぶれないように)
       if (time[i] != null) { pos[i] += 17 * dt; return; }
       const p = pos[i] / D, remain = D - pos[i];
       let v = 16 + r.rating * 0.02;
@@ -417,18 +479,21 @@ export function runRace(s, race, entrants) {
       else {
         v *= { nige: 1.0, senko: 1.02, sashi: 1.045, oikomi: 1.06 }[st];
         v *= r.sta >= 1 ? 1 : 0.86 + 0.14 * r.sta;
-        // 競り合うと根性が出る
         const near = pos.some((q, j) => j !== i && Math.abs(q - pos[i]) < 3);
         if (near) v *= 1 + r.gut * 0.00025;
       }
-      drift[i] = drift[i] * 0.9 + (Math.random() - 0.5) * 0.004;
+      // スパート(わたしたちの馬だけ):長さの分だけ速くなり、使い切るとバテる
+      if (r.own && remain <= r.spurtAt) {
+        v *= r.spurted < r.spurtLen ? 1.022 : 0.965;
+        r.spurted += v * dt;
+      }
+      drift[i] = drift[i] * 0.9 + noise;
       v *= 1 + drift[i];
       const before = pos[i];
       pos[i] += v * dt;
       if (pos[i] >= D) time[i] = t - dt + ((D - before) / (pos[i] - before)) * dt;
     });
-    frames.push(pos.map((p) => Math.round(Math.min(p, D + 40) * 10) / 10));
-    void order;
+    frames.push(pos.map((q) => Math.round(Math.min(q, D + 40) * 10) / 10));
   }
   const finish = runners.map((r, i) => ({ i, time: time[i] })).sort((a, b) => a.time - b.time);
   const results = finish.map((f, k) => {
@@ -437,7 +502,22 @@ export function runRace(s, race, entrants) {
     return { place: k + 1, gate: r.gate, name: r.name, own: r.own, rival: !!r.rival, horseId: r.horseId, jockey: r.jockey, time: f.time, margin: k === 0 ? '' : marginText((f.time - finish[k - 1].time) * 17 / 2.4), gap };
   });
   const commentary = makeCommentary(runners, frames, D, results);
-  return { race: { ...race }, runners: runners.map((r) => ({ name: r.name, coat: r.coat, blaze: r.blaze, own: r.own, rival: !!r.rival, gate: r.gate, style: r.style, horseId: r.horseId, jockey: r.jockey })), frames, dt, results, commentary };
+  return {
+    seed, race: { ...race }, frames, dt, results, commentary,
+    runners: runners.map((r) => ({ name: r.name, coat: r.coat, blaze: r.blaze, own: r.own, rival: !!r.rival, gate: r.gate, style: r.style, horseId: r.horseId, jockey: r.jockey, spurtAt: r.spurtAt, spurtLen: r.spurtLen })),
+  };
+}
+// 今週走るレース(出走登録している馬ごとにまとめる)
+export function weekRaces(s) {
+  const byRace = new Map();
+  for (const h of s.horses) {
+    if (!h.entry) continue;
+    const race = findRace(s, h.entry.raceId);
+    if (!race || race.ahead > 0 || !eligible(s, h, race).ok) continue;
+    if (!byRace.has(race.id)) byRace.set(race.id, { race, list: [] });
+    byRace.get(race.id).list.push({ h, jockey: h.entry.jockey });
+  }
+  return [...byRace.values()];
 }
 function marginText(len) {
   if (len < 0.08) return 'ハナ';
@@ -471,11 +551,16 @@ function makeCommentary(runners, frames, D, results) {
   const f3 = fiAt(D - 600);
   lines.push({ at: f3, text: '最後の直線に入った! さあ、ここからだ!' });
   runners.forEach((r, i) => { if (r.own) lines.push({ at: f3 + 4, text: `${r.name}、いま ${rankOf(f3 + 4, i)}番手! ${r.style === 'sashi' || r.style === 'oikomi' ? '外から伸びてくる!' : 'がんばれ!'}`, own: true }); });
+  runners.forEach((r, i) => {
+    if (!r.own) return;
+    const k = frames.findIndex((f) => D - f[i] <= r.spurtAt);
+    if (k >= 0) lines.push({ at: k, text: `${r.name}、スパート! ${r.spurtAt > r.spurtLen + 80 ? 'ちょっと早いか!?' : 'ぐんぐん伸びる!'}`, own: true, spurt: true });
+  });
   const f4 = fiAt(D - 150);
   lines.push({ at: f4, text: `${leaderAt(f4).name} が先頭! ゴールはもうすぐ!` });
   const w = results[0];
   lines.push({ at: fiAt(D), text: `${w.name}、1着でゴールイン!${w.own ? ' やったー!!' : ''}`, finish: true });
-  return lines;
+  return lines.sort((x, y) => x.at - y.at);
 }
 
 // レース結果を牧場に反映
@@ -845,7 +930,7 @@ export function autoPlan(s, h) {
   h.plan = best;
 }
 
-export function advanceWeek(s) {
+export function advanceWeek(s, opts = {}) {
   const out = { lines: [], train: [], races: [], goals: [], events: [], yearEnd: null };
   for (const h of s.horses) if (h.auto) autoPlan(s, h);
 
@@ -861,11 +946,13 @@ export function advanceWeek(s) {
     byRace.get(race.id).list.push({ h, jockey: h.entry.jockey });
   }
   for (const { race, list } of byRace.values()) {
-    const res = runRace(s, race, list);
+    // 画面でレースを見た(スパートを押した)ときは、その結果を使う
+    const res = opts.raceResults?.[race.id] || runRace(s, race, list);
     applyRace(s, res, out);
     out.races.push(res);
     for (const e of list) completeGoal(s, 'debut', out.goals);
   }
+
   const raced = new Set([...byRace.values()].flatMap((x) => x.list.map((e) => e.h.id)));
 
   // 2) 調教・成長
@@ -876,13 +963,12 @@ export function advanceWeek(s) {
     else if (h.role === 'foal') growFoal(s, h);
     else { h.fatigue = 0; h.mood = clamp(h.mood + (Math.random() < 0.3 ? 1 : 0), 0, 4); }
   }
-  if (anyTrain || s.horses.some((h) => h.role === 'race')) completeGoal(s, 'plan', out.goals);
 
   // 3) 調子のゆらぎ・さみしがり
   for (const h of s.horses) {
     const swing = h.personality === '気分屋' ? 0.35 : h.personality === 'やんちゃ' ? 0.25 : h.personality === 'まじめ' ? 0.08 : 0.15;
     if (Math.random() < swing) h.mood = clamp(h.mood + (Math.random() < 0.5 ? -1 : 1), 0, 4);
-    if (h.personality === 'さみしがり' && h.caredWeek !== s.year * 100 + s.week && Math.random() < 0.4) h.mood = clamp(h.mood - 1, 0, 4);
+    if (h.personality === 'さみしがり' && h.caredWeek !== weekKey(s) && Math.random() < 0.25) h.mood = clamp(h.mood - 1, 0, 4);
     if (bondOf(s, 'haru') >= 90 && h.mood < 1) h.mood = 1;
   }
 
@@ -890,8 +976,13 @@ export function advanceWeek(s) {
   const cost = weekCosts(s);
   s.money -= cost;
 
-  // 5) ほのぼの出来事
-  if (Math.random() < 0.4 && s.horses.length) {
+  // 5) 絆とつながりは、毎週すこしずつ自然に深まる
+  for (const h of s.horses) h.bond = clamp(h.bond + 0.6, 0, 100);
+  for (const pid of ['haru', 'midori', 'takanashi', 'chii']) raiseBond(s, pid, 0.4, out.goals);
+  // えらべるできごと(ときどき)
+  if (Math.random() < 0.45 && !s.pending.some((x) => x.type === 'choice')) { const ev = pickChoiceEvent(s); if (ev) s.pending.push(ev); }
+  // ほのぼの出来事
+  if (Math.random() < 0.25 && s.horses.length) {
     const ev = pick(RANDOM_EVENTS);
     const h = pick(s.horses);
     const text = ev.text.replace('{h}', h.name);
@@ -914,7 +1005,6 @@ export function advanceWeek(s) {
 
   // 6) 週をすすめる
   for (const p of Object.values(s.people)) { p.talked = false; p.gifted = false; }
-  s.careLeft = careMax(s);
   s.week++;
   if (s.week > WEEKS_PER_YEAR) {
     out.yearEnd = yearEnd(s);

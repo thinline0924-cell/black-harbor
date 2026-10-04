@@ -323,3 +323,23 @@ textarea { width: 100%; min-height: 90px; font-size: 12px; }
 .key.race.ping { animation: ping 1.6s infinite; }
 @keyframes ping { 50% { box-shadow: 0 2px 0 #d8d0bd, 0 0 0 6px rgba(212,138,134,.35); } }
 .key.next.racing { background: var(--rose); box-shadow: 0 3px 0 #a8625f; }
+
+/* ---------- 作戦・スパート・できごと ---------- */
+.tactics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+.tac { border: 2px solid #efe7d6; background: #fffdf8; border-radius: 14px; padding: 8px; display: grid; gap: 3px; text-align: left; font-size: 14px; }
+.tac small { color: var(--ink-soft); font-size: 11.5px; line-height: 1.4; }
+.tac.sel { border-color: var(--teal); background: #eef6f2; box-shadow: 0 0 0 3px rgba(79,143,138,.18); }
+.spurt { position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%); width: min(560px, calc(100% - 40px)); background: rgba(251,248,241,.95); border-radius: 20px; padding: 12px 16px; box-shadow: var(--shadow); border: 3px solid #f1c3ca; display: grid; gap: 8px; }
+.spurt.used { opacity: .6; }
+.spurt-gauge { position: relative; height: 16px; background: linear-gradient(90deg, #e9e3d3, #e9e3d3); border-radius: 10px; }
+.spurt-ideal { position: absolute; top: -4px; bottom: -4px; width: 16%; transform: translateX(-50%); background: rgba(121,163,116,.55); border-radius: 8px; border: 2px solid #79a374; }
+.spurt-ideal::after { content: 'ここ!'; position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #4f7f4a; font-weight: 700; white-space: nowrap; }
+.spurt-now { position: absolute; top: 50%; transform: translate(-50%, -50%); font-size: 20px; }
+#spurtBtn { margin-left: auto; border: 0; background: var(--rose); color: #fff; font-family: var(--hand); font-size: 22px; font-weight: 600; padding: 8px 22px; border-radius: 18px; box-shadow: 0 4px 0 #a8625f; display: grid; justify-items: center; animation: pulse2 1s infinite; }
+#spurtBtn small { font-size: 10px; opacity: .8; font-family: var(--body); }
+#spurtBtn:active { transform: translateY(3px); box-shadow: none; }
+@keyframes pulse2 { 50% { transform: scale(1.05); } }
+.event-tag { display: inline-block; font-family: var(--hand); color: #5f8b86; margin-bottom: 8px; }
+.choice-actions { justify-content: center; }
+.choice-actions .btn { font-size: 16px; padding: 10px 18px; }
+@media (max-width: 880px) { .tactics { grid-template-columns: 1fr 1fr; } .spurt { bottom: 128px; } }

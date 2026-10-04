@@ -1,6 +1,6 @@
 // ひだまり牧場 — グラフ(SVG。ライブラリなし)
 
-import { STATS, STAT_LABEL } from './data.js?v=4';
+import { STATS, STAT_LABEL } from './data.js?v=5';
 
 // 能力のレーダー(五角形)。caps があれば「のびしろ」をうすく重ねる
 export function radar(stats, caps) {

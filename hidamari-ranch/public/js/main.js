@@ -1,22 +1,22 @@
 // ひだまり牧場 — 画面の操作(タブ・パネル・会話・レースの再生・セーブ)
 // ルールの計算は game.js にまかせて、ここでは「見せる・押す」だけを書きます。
 
-import * as G from './game.js?v=4';
+import * as G from './game.js?v=5';
 import {
   STATS, STAT_LABEL, STYLE_LABEL, GROWTH_LABEL, SURFACE_LABEL, MOOD_LABEL, PERSONALITIES, COATS, PLANS, YOUNG_PLANS,
   PEOPLE, JOCKEYS, HEART_EVENTS, FACILITIES, GOALS, STAKES,
-} from './data.js?v=4';
-import { horsePortrait, personFace, framePath, map2dSVG, AREAS, cupSVG } from './art.js?v=4';
-import { radar, lineChart, barChart } from './charts.js?v=4';
-import * as A from './audio.js?v=4';
-import { createRace2D } from './race2d.js?v=4';
+} from './data.js?v=5';
+import { horsePortrait, personFace, framePath, map2dSVG, AREAS, cupSVG } from './art.js?v=5';
+import { radar, lineChart, barChart } from './charts.js?v=5';
+import * as A from './audio.js?v=5';
+import { createRace2D } from './race2d.js?v=5';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const yen = (v) => `${Math.round(v).toLocaleString()}万円`;
 const hearts = (b) => '♥'.repeat(Math.floor(b / 20)) + '♡'.repeat(5 - Math.floor(b / 20));
 
-const BUILD = 4; // game.js の BUILD と同じにする
+const BUILD = 5; // game.js の BUILD と同じにする
 const AUTO_KEY = 'hidamari-save-auto';
 const SLOT_KEY = (n) => `hidamari-save-${n}`;
 const TABS = ['map', 'horses', 'people', 'album', 'system'];
@@ -147,9 +147,10 @@ async function newGameFlow() {
   await dialogue('haru', [
     `おう、来たか。今日からあんたが「${ranchName}」のオーナーだな。`,
     '先代から話は聞いてる。小さい牧場だが、馬たちはみんないい子だ。',
-    'いまいるのは、2歳のコハルビヨリとドングリ、1歳のマツボックリ。それから、おなかに子がいるハナミチだ。',
-    '馬を育てて、レースに出して、また次の世代につないでいく。それが牧場の仕事さ。',
-    '困ったら右上の「!」を見な。やることが書いてある。…まずは、わしにあいさつしてくれたら嬉しいがな。',
+    'いまいるのは、3歳のコハルビヨリ、2歳のドングリ、1歳のマツボックリ。それから、おなかに子がいるハナミチだ。',
+    'コハルビヨリは、もうすぐにでもレースに出られるぞ。まだ勝ててないから、初勝利をプレゼントしてやってくれ。',
+    '右下の「🏁 レース」から出走できる。レース中、最後の直線で「スパート!」を押すのを忘れるなよ。',
+    '困ったら右上の「!」を見な。やることが書いてある。さあ、はじめようか。',
   ]);
   renderAll();
 }
@@ -197,7 +198,7 @@ async function startGame() {
 
 async function init3D() {
   try {
-    const mod = await import('./ranch3d.js?v=4');
+    const mod = await import('./ranch3d.js?v=5');
     ranch = mod.createRanch($('#view3d'), {
       onArea: (a) => { A.sfx('open'); openArea(a); },
       onHorse: (id) => { A.sfx('neigh'); selHorse = id; openArea('stable'); },
@@ -220,10 +221,11 @@ function applyMapMode() {
 }
 
 // ---------- マップの名札 ----------
-const HOT_AREAS = ['stable', 'track', 'office', 'house', 'breed', 'workshop', 'town', 'hill'];
+const HOT_AREAS = ['stable', 'track', 'office', 'house', 'breed', 'workshop', 'town', 'hill', 'racecourse'];
+const HOT_LABEL = (k) => (k === 'racecourse' ? { icon: '🏟', label: '競馬場' } : AREAS[k]);
 let dots = {};
 function buildHotspots() {
-  $('#hotspots').innerHTML = HOT_AREAS.map((k) => `<button class="hot" data-act="area" data-area="${k}" id="hot-${k}"><span class="ic">${AREAS[k].icon}</span>${AREAS[k].label}<span class="dot hidden"></span></button>`).join('');
+  $('#hotspots').innerHTML = HOT_AREAS.map((k) => `<button class="hot" data-act="area" data-area="${k}" id="hot-${k}"><span class="ic">${HOT_LABEL(k).icon}</span>${HOT_LABEL(k).label}<span class="dot hidden"></span></button>`).join('');
 }
 function placeHotspots(project) {
   for (const k of HOT_AREAS) {
@@ -239,9 +241,9 @@ function computeDots() {
   const s = S;
   const free = s.horses.filter((h) => h.role === 'race' && !h.entry && h.fatigue < 70 && G.racesForWeek(s.year, s.week).some((r) => G.eligible(s, h, r).ok));
   dots = {
-    stable: s.careLeft > 0,
+    stable: false,
     office: free.length > 0,
-    house: Object.keys(PEOPLE).some((p) => G.jockeyAvailable(s, p) && !s.people[p].talked),
+    house: false,
     breed: (G.breedingOpen(s) && s.horses.some((h) => h.role === 'brood' && !h.pregnant)) || s.horses.some((h) => h.needsName),
     town: !!G.marketOpen(s) && s.market.some((m) => !m.sold),
     track: s.horses.some((h) => h.role === 'race' && h.fatigue >= 70 && !['rest', 'pasture'].includes(h.plan) && !h.auto),
@@ -292,7 +294,7 @@ function renderStatus() {
   const c = G.nowCal(S);
   $('#status').innerHTML = `<span class="cal">${c.label}</span><span>${{ spring: '🌸', summer: '🌻', autumn: '🍁', winter: '⛄' }[c.season]} ${c.seasonLabel}</span>
     <span class="money ${S.money < 0 ? 'neg' : ''}">💰 ${yen(S.money)}</span><span title="にんじん">🥕 ${S.carrots}</span>
-    <span title="今週のお世話の手間ポイント">✋ ${S.careLeft}/${G.careMax(S)}</span><span title="馬房">🏠 ${G.stallsUsed(S)}/${G.capacity(S)}</span>`;
+<span title="馬房">🏠 ${G.stallsUsed(S)}/${G.capacity(S)}</span>`;
 }
 function renderQuest() {
   const g = G.currentGoal(S);
@@ -308,6 +310,7 @@ function renderTab() {
 
 // ---------- 地図のパネル ----------
 function openArea(a) {
+  if (a === 'racecourse') a = 'office';
   if (a === 'pond') { toast('池のほとり。アヒルがのんびり泳いでいる。'); return; }
   area = a;
   if (tab !== 'map') setTab('map', true);
@@ -334,20 +337,23 @@ function horseLine(h, extra = '') {
 }
 function fatBar(h) { return `<div class="bar fat" title="疲れ ${Math.round(h.fatigue)}"><i style="width:${h.fatigue}%"></i></div>`; }
 
+function careButton(h) {
+  return G.caredThisWeek(S, h)
+    ? '<span class="tag own">💗 今週はふれあいずみ</span>'
+    : `<button class="btn small rose" data-act="care" data-id="${h.id}">🤲 ふれあう</button>`;
+}
 function areaStable() {
+  const left = S.horses.filter((h) => !G.caredThisWeek(S, h)).length;
   const list = S.horses.map((h) => `<div class="item ${selHorse === h.id ? 'sel' : ''}">
     ${horseLine(h, `<div class="row" style="margin-top:4px"><span class="hearts" title="絆 ${Math.round(h.bond)}">${hearts(h.bond)}</span><span class="muted">疲れ</span><div class="grow">${fatBar(h)}</div></div>
-      <div class="row" style="margin-top:6px">
-        <button class="btn small" data-act="care" data-id="${h.id}" data-kind="brush">🪮 ブラッシング</button>
-        <button class="btn small" data-act="care" data-id="${h.id}" data-kind="carrot">🥕 にんじん</button>
-        <button class="btn small" data-act="care" data-id="${h.id}" data-kind="walk">🐾 おさんぽ</button>
+      <div class="row" style="margin-top:6px">${careButton(h)}
         <button class="btn small" data-act="horse-detail" data-id="${h.id}">くわしく</button>
         ${h.needsName ? `<button class="btn small rose" data-act="name" data-id="${h.id}">名前をつける</button>` : ''}
       </div>`)}</div>`).join('');
-  return `<h2>🐴 厩舎</h2><p class="lead">馬たちのお世話をしよう。お世話は1週間に ${G.careMax(S)} 回まで(いま のこり <b>${S.careLeft}</b> 回)。絆が深まると、調教もレースもうまくいきます。</p>
+  return `<h2>🐴 厩舎</h2><p class="lead">「ふれあう」と、その馬が好きなこと(ブラッシング・にんじん・おさんぽ)をして絆が深まります。1頭につき週1回。やらなくても、毎日の暮らしで絆は少しずつ深まります。</p>
+    ${left ? `<button class="btn primary" style="margin-bottom:10px" data-act="care-all">🤲 みんなとふれあう(${left}頭)</button>` : '<p class="muted">今週は全員とふれあいました。</p>'}
     <div class="list">${list}</div>`;
 }
-
 function planChips(h) {
   const age = G.horseAge(S, h);
   if (h.role === 'foal') {
@@ -475,7 +481,7 @@ function personMini(pid) {
     <button class="btn small" data-act="gift" data-pid="${pid}" ${p.gifted ? 'disabled' : ''}>🎁 差し入れ(3万円)</button></div></div></div>`;
 }
 function areaHouse() {
-  return `<h2>🏡 母屋</h2><p class="lead">牧場のなかまたちが集まる場所。毎週おはなしをすると、なかよくなれます。なかよくなると、いろいろ助けてくれます(くわしくは「なかま」タブ)。</p>
+  return `<h2>🏡 母屋</h2><p class="lead">牧場のなかまたちが集まる場所。おはなしは気が向いたときだけで大丈夫。週のおわりの「できごと」やレースでも、自然となかよくなれます。</p>
     <div class="list">${Object.keys(PEOPLE).map(personMini).join('')}</div>`;
 }
 
@@ -593,8 +599,8 @@ function horseDetail(h) {
       </div>
       <div><div style="text-align:center">${radar(h.stats, seeCaps ? h.caps : null)}</div>
         ${h.role === 'race' || h.role === 'foal' ? `<div class="sub-h">今週の予定</div>${planChips(h)}` : ''}
-        <div class="sub-h">お世話(のこり ${S.careLeft} 回)</div>
-        <div class="row"><button class="btn small" data-act="care" data-id="${h.id}" data-kind="brush">🪮 ブラッシング</button><button class="btn small" data-act="care" data-id="${h.id}" data-kind="carrot">🥕 にんじん(${S.carrots})</button><button class="btn small" data-act="care" data-id="${h.id}" data-kind="walk">🐾 おさんぽ</button></div>
+        <div class="sub-h">ふれあい</div>
+        <div class="row">${careButton(h)}</div>
       </div>
     </div>
     <div class="sub-h">成績</div>
@@ -674,8 +680,9 @@ function renderSystemPage() {
       <div class="card" style="font-size:13.5px;line-height:1.8">
         ・<b>マップ</b>の建物をクリックすると、その場所でできることが開きます(3D はドラッグで回せます)。<br>
         ・<b>レースに出るには</b>:右下の<b>「🏁 レース」</b>ボタン(または地図の「レース事務所」)→ ①馬をえらぶ → ②レースのカードの「このレースに出る」(8週先まで予約もできます)→ ③右下の<b>「1週すすめる」</b>でレースが始まります。<br>・<b>調教コース</b>で毎週のメニューを決めます(「おまかせ」もできます)。<br>
-        ・<b>厩舎</b>でブラッシングやおさんぽをすると、馬との<b>絆</b>が深まり、調教やレースで力を出しやすくなります。<br>
-        ・<b>母屋</b>で関係者とおはなしすると<b>なかよし度</b>が上がり、いろいろ助けてくれます。<br>
+        ・レース中は<b>最後の直線で「💨 スパート!」</b>(Space キー)。目安の距離ぴったりで押すと伸びます。早すぎるとバテます。<br>
+        ・<b>厩舎</b>の「ふれあう」(週1回・全員まとめてもOK)で馬との<b>絆</b>が深まります。やらなくても少しずつ深まります。<br>
+        ・週のおわりにときどき<b>できごと</b>が起きます。えらんだ答えで、なかまとの<b>なかよし度</b>や馬の様子が変わります。<br>
         ・引退した牝馬は<b>繁殖牝馬</b>に。春に種付けをすると、次の年に子馬が生まれます。何世代もかけて最強の馬を目指そう。<br>
         ・キーボード:Q / E でタブ切り替え、R でレース、V で表示切替、Esc で閉じる、Space で1週すすめる。
       </div>
@@ -696,12 +703,15 @@ async function nextWeek() {
   busy = true;
   try {
     const before = G.nowCal(S);
-    const out = G.advanceWeek(S);
-    A.sfx('bell');
-    for (const res of out.races) {
-      await playRace(res);
-      await raceResult(res);
+    // 今週のレースを見る(作戦をえらび、スパートを押す)
+    const raceResults = {};
+    for (const wr of G.weekRaces(S)) {
+      const tactic = await tacticModal(wr);
+      raceResults[wr.race.id] = await playRace(wr, tactic);
     }
+    const out = G.advanceWeek(S, { raceResults });
+    A.sfx('bell');
+    for (const res of out.races) await raceResult(res);
     A.music('ranch');
     saveTo(AUTO_KEY);
     renderAll();
@@ -737,6 +747,7 @@ async function fastForward() {
       const out = G.advanceWeek(S);
       lines.push(...out.lines);
       goals.push(...out.goals);
+      S.pending = S.pending.filter((p) => p.type !== 'choice'); // まとめて進めるときは、できごとは省く
       if (out.yearEnd) { yearEnd = out.yearEnd; n++; break; }
       if (S.pending.length) { n++; break; }
     }
@@ -771,6 +782,17 @@ async function processPending() {
       const ev = HEART_EVENTS[p.pid].find((e) => e.at === p.at);
       A.jingle('heart');
       await dialogue(p.pid, [`💗 ${PEOPLE[p.pid].name}との思い出(なかよし度 ${p.at})`, ...ev.lines]);
+    } else if (p.type === 'choice') {
+      const v = G.choiceEventView(S, p);
+      A.sfx('talk');
+      const c = await modal(`<div class="event-tag">🌼 牧場のできごと</div>
+        <div class="talk"><div class="face">${personFace(v.pid)}</div><div class="bubble"><div class="muted">${esc(PEOPLE[v.pid].name)}</div>${esc(v.text)}</div></div>
+        <div class="actions choice-actions">${v.choices.map((l, i) => `<button class="btn ${i ? 'rose' : 'primary'}" data-choice="c${i}">${esc(l)}</button>`).join('')}</div>`);
+      const r = G.chooseEvent(S, p, Number(String(c || 'c0').slice(1)) || 0);
+      A.sfx('open');
+      await modal(`<div class="talk"><div class="face">${personFace(v.pid)}</div><div class="bubble">${esc(r.reply)}${r.notes ? `<div class="muted" style="margin-top:6px">✨ ${esc(r.notes)}</div>` : ''}</div></div>
+        <div class="actions"><button class="btn primary" data-choice="ok">OK</button></div>`, { dismiss: true });
+      showGoals(r.goals);
     } else if (p.type === 'name') {
       const h = G.findHorse(S, p.horseId);
       if (!h || !h.needsName) { S.pending.shift(); continue; }
@@ -816,7 +838,28 @@ function showGoals(list) {
 }
 
 // ---------- レースの再生 ----------
-async function playRace(res) {
+const TACTIC_DESC = { nige: '最初から先頭へ。そのまま逃げきれ!', senko: '前のほうで流れに乗る。安定した作戦', sashi: '中団で力をためて、直線で伸びる', oikomi: '最後方から、一気にごぼう抜き!' };
+const tacticSel = {};
+async function tacticModal(wr) {
+  const rows = wr.list.map(({ h, jockey }) => {
+    tacticSel[h.id] = h.style;
+    return `<div class="card" style="margin-bottom:10px"><div class="row"><div class="portrait">${horsePortrait(h)}</div><div class="grow"><b>${esc(h.name)}</b> <span class="muted">騎手 ${esc(PEOPLE[jockey].name)} / 調子 ${MOOD_LABEL[h.mood]} / 疲れ ${Math.round(h.fatigue)}</span>
+      <div class="muted">💨 スパートの目安:<b>残り 約${G.spurtLength(h)}m</b>(スタミナが多いほど長くもつ)</div></div></div>
+      <div class="tactics">${G.TACTICS.map((t) => `<button class="tac ${t === h.style ? 'sel' : ''}" data-tac="${t}" data-id="${h.id}"><b>${STYLE_LABEL[t]}</b>${t === h.style ? '<span class="tag own">得意</span>' : ''}<small>${TACTIC_DESC[t]}</small></button>`).join('')}</div></div>`;
+  }).join('');
+  A.sfx('open');
+  await modal(`<h3>🏁 ${esc(wr.race.grade ? wr.race.grade + ' ' : '')}${esc(wr.race.label)} ${SURFACE_LABEL[wr.race.surface]}${wr.race.dist}m</h3>
+    <p class="lead">作戦をえらんでスタート! 得意な作戦がいちばん力を出せます。レース中は<b>最後の直線で「💨 スパート!」</b>(または Space キー)を押そう。押さないと残り${G.AUTO_SPURT}mで自動でスパートします。</p>
+    ${rows}<div class="actions"><button class="btn primary" data-choice="go">スタート!</button></div>`, { wide: true });
+  const out = {};
+  for (const { h } of wr.list) out[h.id] = tacticSel[h.id] || h.style;
+  return out;
+}
+
+async function playRace(wr, tactic) {
+  const seed = Math.floor(Math.random() * 1e9);
+  const sim = (spurt) => G.runRace(S, wr.race, wr.list, { seed, tactic, spurt });
+  let res = sim({});
   const scr = $('#race');
   scr.classList.remove('hidden');
   $('#raceName').textContent = `${res.race.grade ? res.race.grade + ' ' : ''}${res.race.label}  ${SURFACE_LABEL[res.race.surface]}${res.race.dist}m`;
@@ -825,54 +868,94 @@ async function playRace(res) {
   let view = null;
   if (!raceFailed) {
     try {
-      if (!raceView) { const mod = await import('./race3d.js?v=4'); raceView = mod.createRaceView($('#race3d')); }
+      if (!raceView) { const mod = await import('./race3d.js?v=5'); raceView = mod.createRaceView($('#race3d')); }
       view = raceView;
       $('#race3d').classList.remove('hidden');
       $('#race2d').classList.add('hidden');
-    } catch (e) { console.warn('3D レースを使えません:', e); raceFailed = true; }
+      view.setup(res);
+      view.draw(res.runners.map(() => 0), 0);
+    } catch (e) { console.warn('3D レースを使えません:', e); raceFailed = true; view = null; }
   }
   if (!view) {
     $('#race3d').classList.add('hidden');
     $('#race2d').classList.remove('hidden');
     race2d ||= createRace2D($('#race2d'));
     view = race2d;
+    view.setup(res);
+    view.draw(res.runners.map(() => 0), 0);
   }
-  view.setup(res);
-  const own = res.runners.filter((r) => r.own);
+  const ownIdx = res.runners.map((r, i) => (r.own ? i : -1)).filter((i) => i >= 0);
+  const lens = ownIdx.map((i) => res.runners[i].spurtLen);
+  const ideal = Math.round(lens.reduce((a, b) => a + b, 0) / lens.length);
+  const D0 = wr.race.dist;
+  const WIN = Math.round(Math.min(D0 * 0.6, Math.max(ideal + 350, 650))); // ゲージを出すのは、残りこの距離から
   const talk = $('#raceTalk');
   talk.className = 'race-talk own';
-  talk.textContent = `${own.map((r) => `${r.gate}番 ${r.name}(騎手 ${r.jockey})`).join('、')} が出走します!`;
+  talk.textContent = `${ownIdx.map((i) => `${res.runners[i].gate}番 ${res.runners[i].name}(${STYLE_LABEL[res.runners[i].style]})`).join('、')} が出走します!`;
   A.music(null);
-  view.draw(res.runners.map(() => 0), 0);
   A.jingle('fanfare');
-  let skip = false;
+  let skip = false, spurted = false;
   const speeds = [4, 8, 16];
   let si = 0;
   $('#raceSpeed').textContent = 'はやおくり ×1';
   $('#raceSpeed').onclick = () => { si = (si + 1) % speeds.length; $('#raceSpeed').textContent = `はやおくり ×${speeds[si] / 4}`; };
   $('#raceSkip').onclick = () => { skip = true; };
+  const box = $('#spurtBox');
+  $('#spurtIdeal').style.left = `${(1 - Math.min(WIN, ideal) / WIN) * 100}%`;
+  $('#spurtHint').textContent = `目安:残り 約${ideal}m`;
+  box.classList.add('hidden');
+  const D = res.race.dist, dt = res.dt;
+  let tSim = 0, last = 0, cheered = false, ci = 0, curFi = 0;
+  const doSpurt = () => {
+    if (spurted || skip) return;
+    const f = res.frames[Math.min(res.frames.length - 1, Math.floor(curFi))];
+    const remain = Math.min(...ownIdx.map((i) => D - f[i]));
+    if (remain <= G.AUTO_SPURT || remain > WIN) return;
+    spurted = true;
+    const sp = {};
+    for (const i of ownIdx) sp[res.runners[i].horseId] = Math.max(G.AUTO_SPURT, Math.round(D - f[i]));
+    res = sim(sp); // ここから先だけが変わる(同じ seed なので、ここまでは同じ)
+    ci = res.commentary.findIndex((c) => c.at >= Math.floor(curFi) - 1);
+    if (ci < 0) ci = res.commentary.length;
+    const diff = remain - ideal;
+    toast(Math.abs(diff) <= 80 ? '💨 ナイススパート! ぴったりのタイミング!' : diff > 0 ? '💨 スパート! …ちょっと早いかも!?' : '💨 スパート! もう少し早くてもよかったかも', 2500);
+    A.sfx('neigh');
+    box.classList.add('used');
+  };
+  raceSpurt = doSpurt;
+  $('#spurtBtn').onclick = doSpurt;
   await wait(2200, () => skip);
   A.music('race');
   A.hooves(true, 0.5);
-  const D = res.race.dist, F = res.frames, dt = res.dt;
-  const total = (F.length - 1) * dt;
-  let tSim = 0, last = performance.now(), cheered = false, ci = 0;
+  box.classList.remove('used');
   await new Promise((resolve) => {
     function frame(now) {
+      const F = res.frames, total = (F.length - 1) * dt;
+      if (!last) last = now;
       const real = Math.max(0, Math.min(0.1, (now - last) / 1000));
       last = now;
-      tSim = Math.min(total, tSim + real * speeds[si]);
+      // 最後の直線は、スパートのタイミングを見やすいように少しゆっくり
+      const fNow = F[Math.min(F.length - 1, Math.floor(curFi))];
+      const ownRemain = Math.min(...ownIdx.map((i) => D - fNow[i]));
+      const slow = !spurted && ownRemain < WIN && ownRemain > G.AUTO_SPURT ? 0.45 : 1;
+      tSim = Math.min(total, tSim + real * speeds[si] * slow);
       if (skip) tSim = total;
       const fi = Math.max(0, tSim / dt), i0 = Math.min(F.length - 1, Math.floor(fi)), i1 = Math.min(F.length - 1, i0 + 1), k = fi - i0;
+      curFi = fi;
       const dists = F[i0].map((d, j) => d + (F[i1][j] - d) * k);
       view.draw(dists, tSim, { finished: tSim >= total });
-      // 順位表
       const order = dists.map((d, j) => [d, j]).sort((a, b) => b[0] - a[0]);
       const top = order.slice(0, 5).map(([, j], n) => [n + 1, j]);
       order.forEach(([, j], n) => { if (res.runners[j].own && n >= 5) top.push([n + 1, j]); });
       $('#raceBoard').innerHTML = top.map(([n, j]) => `<li class="${res.runners[j].own ? 'own' : ''}"><span class="n">${n}</span>${esc(res.runners[j].name)}</li>`).join('');
       $('#raceTime').textContent = G.timeText(Math.min(tSim, res.results[0].time));
       $('#raceProgress').style.width = Math.min(100, (order[0][0] / D) * 100) + '%';
+      // スパートのゲージ
+      const r = Math.min(...ownIdx.map((i) => D - dists[i]));
+      const showBox = !spurted && r < WIN && r > G.AUTO_SPURT;
+      box.classList.toggle('hidden', !showBox && !spurted);
+      if (showBox) $('#spurtNow').style.left = `${(1 - Math.max(0, r) / WIN) * 100}%`;
+      if (spurted && r < 0) box.classList.add('hidden');
       while (ci < res.commentary.length && res.commentary[ci].at <= fi) {
         const c = res.commentary[ci++];
         talk.textContent = c.text;
@@ -884,6 +967,8 @@ async function playRace(res) {
     }
     requestAnimationFrame(frame);
   });
+  raceSpurt = null;
+  box.classList.add('hidden');
   A.hooves(false);
   const best = res.results.find((r) => r.own);
   const w = res.results[0];
@@ -891,7 +976,9 @@ async function playRace(res) {
   if (best && best.place === 1) { A.jingle('win'); A.sfx('cheer'); } else if (best && best.place <= 3) A.jingle('goal');
   await wait(skip ? 300 : 2400, () => false);
   scr.classList.add('hidden');
+  return res;
 }
+let raceSpurt = null;
 function wait(ms, cancel) {
   return new Promise((res) => {
     const t0 = performance.now();
@@ -936,12 +1023,22 @@ async function act(name, d) {
     case 'care': {
       const r = G.care(S, d.id, d.kind);
       if (!r.ok) { A.sfx('error'); toast(r.text); break; }
-      A.sfx(d.kind === 'brush' ? 'brush' : d.kind === 'carrot' ? 'carrot' : 'walk');
+      A.sfx(r.kind === 'brush' ? 'brush' : r.kind === 'carrot' ? 'carrot' : 'walk');
       if (Math.random() < 0.3) setTimeout(() => A.sfx('neigh'), 500);
       toast(`${r.text}(${r.effect})`);
       say(r.text);
       showGoals(r.goals);
       renderAll();
+      break;
+    }
+    case 'care-all': {
+      const list = G.careAll(S);
+      if (!list.length) { toast('今週はもう、みんなとふれあいました。'); break; }
+      A.sfx('brush');
+      setTimeout(() => A.sfx('neigh'), 600);
+      renderAll();
+      await modal(`<h3>🤲 みんなとふれあった</h3><div class="report-list">${list.map((r) => `<div class="r">${esc(r.text)} <span class="muted">${esc(r.effect)}</span></div>`).join('')}</div>
+        <div class="actions"><button class="btn primary" data-choice="ok">OK</button></div>`, { dismiss: true });
       break;
     }
     case 'plan': {
@@ -1092,6 +1189,13 @@ document.addEventListener('pointerdown', () => A.unlock(), { capture: true });
 document.addEventListener('keydown', () => A.unlock(), { capture: true });
 
 document.addEventListener('click', (e) => {
+  const tac = e.target.closest('[data-tac]');
+  if (tac) {
+    tacticSel[tac.dataset.id] = tac.dataset.tac;
+    tac.parentElement.querySelectorAll('.tac').forEach((x) => x.classList.toggle('sel', x === tac));
+    A.sfx('click');
+    return;
+  }
   const fill = e.target.closest('[data-fill]');
   if (fill) { const inp = $('#nameInput'); if (inp) inp.value = fill.dataset.fill; return; }
   const ch = e.target.closest('[data-choice]');
@@ -1144,7 +1248,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { if (modalOpen() && modalDismiss) closeModal(null); else if (area) closeArea(); return; }
   if (typing) { if (e.key === 'Enter' && modalOpen()) { const ok = $('#modalCard [data-choice="ok"]'); ok?.click(); } return; }
   if (modalOpen()) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#modalCard [data-choice]:last-of-type')?.click(); } return; }
-  if (!$('#race').classList.contains('hidden')) return;
+  if (!$('#race').classList.contains('hidden')) { if (e.key === ' ') { e.preventDefault(); raceSpurt?.(); } return; }
   if (e.key === 'q' || e.key === 'Q') cycleTab(-1);
   else if (e.key === 'e' || e.key === 'E') cycleTab(1);
   else if (e.key === 'v' || e.key === 'V') toggleView();

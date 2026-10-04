@@ -270,15 +270,15 @@ export const STAKES = [
 
 // ふだんのレース(クラス別)
 export const CLASSES = {
-  debut: { label: '新馬戦', prize: 500, level: 38 },
-  maiden: { label: '未勝利戦', prize: 400, level: 42 },
-  c1: { label: '1勝クラス', prize: 600, level: 50 },
-  c2: { label: '2勝クラス', prize: 800, level: 57 },
-  op: { label: 'オープン特別', prize: 1300, level: 63 },
+  debut: { label: '新馬戦', prize: 500, level: 39 },
+  maiden: { label: '未勝利戦', prize: 400, level: 43 },
+  c1: { label: '1勝クラス', prize: 600, level: 51 },
+  c2: { label: '2勝クラス', prize: 800, level: 58 },
+  op: { label: 'オープン特別', prize: 1300, level: 64 },
 };
-export const GRADE_LEVEL = { G3: 65, G2: 69, G1: 74 };
-export const GRADE_LEVEL_2YO = { G3: 53, G2: 56, G1: 60 };
-export const GRADE_LEVEL_3YO = { G3: 61, G2: 65, G1: 69 };
+export const GRADE_LEVEL = { G3: 66, G2: 70, G1: 75 };
+export const GRADE_LEVEL_2YO = { G3: 54, G2: 57, G1: 61 };
+export const GRADE_LEVEL_3YO = { G3: 62, G2: 66, G1: 70 };
 
 // ---- 施設 ----
 export const FACILITIES = {
@@ -312,20 +312,65 @@ export const RANDOM_EVENTS = [
 
 // ---- 目標(右上に出る「やること」)----
 export const GOALS = [
-  { id: 'talkHaru', text: 'はるさんにあいさつしよう', hint: '牧場マップの「母屋」→ はるさん →「おはなし」' },
-  { id: 'brush', text: '馬をブラッシングしてあげよう', hint: '牧場マップの「厩舎」→ 馬を選んで「ブラッシング」' },
-  { id: 'plan', text: '調教の予定を決めて、1週すすめよう', hint: '「調教コース」で予定を選び、右下の「1週すすめる」' },
-  { id: 'debut', text: 'デビュー戦(新馬戦)に出走しよう', hint: '右下の「🏁 レース」ボタン → 馬をえらぶ → レースをえらぶ → 「1週すすめる」。2歳馬は6月からデビューできます(5月から予約OK)' },
-  { id: 'firstWin', text: '初勝利をあげよう', hint: '調子がいいときに、得意な距離のレースへ' },
-  { id: 'breed', text: '繁殖牝馬に種付けをしよう', hint: '春(3〜5月)に「繁殖場」で相手を選ぼう' },
+  { id: 'debut', text: 'はじめてのレースに出よう', hint: '右下の「🏁 レース」→ 馬をえらぶ → レースのカードの「このレースに出る」→「1週すすめる」' },
+  { id: 'firstWin', text: '初勝利をあげよう', hint: 'レース中、最後の直線で「スパート!」をいいタイミングで押そう' },
   { id: 'foalName', text: '生まれた子馬に名前をつけよう', hint: '子馬は春に生まれます' },
+  { id: 'friend', text: 'だれかと「なかよし度 50」になろう', hint: '週のおわりの「できごと」で、なかまと心を通わせよう' },
+  { id: 'breed', text: '繁殖牝馬に種付けをしよう', hint: '春(3〜5月)に「繁殖場」で相手を選ぼう' },
   { id: 'graded', text: '重賞(G3以上)を勝とう', hint: '獲得賞金がたまると重賞に出られます' },
   { id: 'facility', text: '牧場の施設をひとつ建てよう', hint: '「工房」で建てられます' },
-  { id: 'friend', text: 'だれかと「なかよし度 50」になろう', hint: '毎週おはなし・差し入れをしよう' },
   { id: 'g1', text: 'G1レースを勝とう', hint: '大舞台は、調子と疲れの管理がカギ' },
   { id: 'derby', text: 'ひだまりダービーを勝とう', hint: '3歳の5月、2400mの大レース' },
-  { id: 'retire', text: '活躍した馬を、牧場で引退させてあげよう', hint: '「厩舎」で3歳以上の馬を引退できます' },
+  { id: 'retire', text: '活躍した馬を、牧場で引退させてあげよう', hint: '「ウマたち」で3歳以上の馬を引退できます' },
   { id: 'g1x5', text: 'G1を通算5勝しよう', hint: '何世代もかけて、牧場を大きくしよう' },
   { id: 'allFriends', text: 'みんなと「なかよし度 80」になろう', hint: '関係者みんなの物語を見よう' },
   { id: 'grandprix', text: 'ほしふるグランプリを勝とう', hint: '年末の夢の大レース' },
+];
+
+// ---- えらべる「できごと」(週のおわりに、ときどき起きる)----
+// need: horse=どの馬でも / racer=競走馬 / foal=子馬 / none
+// eff: hbond=その馬の絆, mood, fat=疲れ, stat=能力アップ, allBond=全頭の絆, money, carrots, jbond=騎手と馬の絆, 人のid=なかよし度
+export const CHOICE_EVENTS = [
+  { pid: 'haru', need: 'horse', text: '{h}がなんだか、そわそわしてるぞ。どうする?', choices: [
+    { label: 'そばで見守る', reply: 'あなたがそばにいると、{h}はだんだん落ち着いてきた。', eff: { hbond: 6, haru: 3 } },
+    { label: 'おさんぽに連れ出す', reply: '外の空気を吸って、{h}はすっきりした顔になった。', eff: { fat: -12, mood: 1, hbond: 3 } }] },
+  { pid: 'midori', need: 'racer', text: '新しい調教のアイデアがあるんです。{h}で試してもいいですか?', choices: [
+    { label: 'ぜひお願いします', reply: 'みどり先生のメニューで、{h}の動きが少し良くなった!', eff: { stat: 2, fat: 8, midori: 5 } },
+    { label: '今週は休ませたい', reply: 'みどり「わかりました。休むのも大事ですね」', eff: { fat: -15, midori: 2 } }] },
+  { pid: 'chii', need: 'horse', text: 'みてみて! {h}の絵、かいたの!', choices: [
+    { label: '上手だね!', reply: 'ちいちゃんは、てれくさそうに笑った。', eff: { chii: 7 } },
+    { label: '馬房にかざろう', reply: '絵をかざると、{h}がふしぎそうに鼻を近づけた。', eff: { chii: 5, hbond: 4 } }] },
+  { pid: 'takanashi', need: 'racer', text: '{h}の健康チェック、念入りにしておきますか?', choices: [
+    { label: 'お願いします(5万円)', reply: '小鳥遊先生「うん、どこも悪くない。疲れもとっておきましたよ」', eff: { money: -5, fat: -18, takanashi: 5 } },
+    { label: 'いつもどおりで', reply: '小鳥遊先生「了解です。何かあったら呼んでくださいね」', eff: { takanashi: 2 } }] },
+  { pid: 'kakeru', need: 'racer', text: '{h}の調教、オレにつけさせてください!', choices: [
+    { label: '頼むよ!', reply: 'かけると{h}は、息ぴったりで坂をかけあがった!', eff: { jbond: ['kakeru', 10], stat: 1, kakeru: 5 } },
+    { label: 'また今度ね', reply: 'かける「了解っす! いつでも呼んでください!」', eff: { kakeru: 2 } }] },
+  { pid: 'shizuku', need: 'racer', text: '…{h}に、少しだけ乗ってみてもいいですか?', choices: [
+    { label: 'どうぞ', reply: 'しずくが乗ると、{h}は静かに耳を立てて集中していた。', eff: { jbond: ['shizuku', 10], shizuku: 5 } },
+    { label: '一緒に見に行こう', reply: '並んで馬場を眺めた。しずく「…いい時間ですね」', eff: { shizuku: 6 } }] },
+  { pid: 'gou', need: 'racer', text: 'ガハハ! {h}の顔を見に来たぜ!', choices: [
+    { label: '乗ってみてください', reply: 'ゴウ「おう、こいつはいい背中してるぜ!」', eff: { jbond: ['gou', 10], gou: 4 } },
+    { label: 'お茶でもどうぞ', reply: 'はるさんも加わって、昔話に花が咲いた。', eff: { gou: 5, haru: 2 } }] },
+  { pid: 'kurokawa', need: 'racer', text: '…次の重賞、お前の{h}も出てくるのか?', choices: [
+    { label: 'もちろん!', reply: '黒川「ふん。楽しみにしておく」 {h}も気合が入ったようだ。', eff: { kurokawa: 5, mood: 1 } },
+    { label: 'まだまだ修行中です', reply: '黒川「…焦るな。いい馬は時間がかかる」', eff: { kurokawa: 3 } }] },
+  { pid: 'haru', need: 'foal', text: '{h}がはじめて全力で走ったぞ! 見てたか?', choices: [
+    { label: '拍手する', reply: '{h}はほめられたのがわかったのか、得意げにしっぽを振った。', eff: { hbond: 7, haru: 2 } },
+    { label: 'にんじんでお祝い', reply: '{h}はにんじんを大事そうにかじった。', eff: { carrots: -1, hbond: 4, mood: 2 } }] },
+  { pid: 'haru', need: 'none', text: '今夜は大雨になりそうだ。馬たちが不安そうでな…', choices: [
+    { label: '馬房でいっしょに過ごす', reply: '雨音の中、馬たちはあなたのそばで静かに眠った。', eff: { allBond: 3, haru: 2 } },
+    { label: 'はるさんにまかせる', reply: 'はるさん「おう、まかせとけ。子守唄でも歌うさ」', eff: { haru: 5 } }] },
+  { pid: 'chii', need: 'none', text: '町でお祭りやってるよ! にんじんが安いんだって!', choices: [
+    { label: '買いに行こう(10万円で30本)', reply: 'ちいちゃんと両手いっぱいのにんじんを抱えて帰った。', eff: { money: -10, carrots: 30, chii: 4 } },
+    { label: '見るだけにしよう', reply: 'わたあめを半分こした。ちい「たのしかったー!」', eff: { chii: 5 } }] },
+  { pid: 'haru', need: 'none', text: 'いてて…。ちょいと腰をやっちまったみたいだ。', choices: [
+    { label: '今週は休んでください', reply: 'はるさん「すまんな…。ありがとよ」', eff: { haru: 7 } },
+    { label: 'お世話を手伝います', reply: '一日中、馬たちの世話をした。馬たちもうれしそうだ。', eff: { haru: 4, allBond: 2 } }] },
+  { pid: 'midori', need: 'racer', text: '{h}、最近すこし元気がない気がします。どうしましょう?', choices: [
+    { label: '放牧でのんびりさせる', reply: '牧草地で転げまわって、{h}はすっかり元気になった。', eff: { mood: 2, fat: -10, midori: 2 } },
+    { label: 'たくさんなでてあげる', reply: '{h}はあなたの肩に頭をのせて、ふーっと息をはいた。', eff: { hbond: 6, mood: 1 } }] },
+  { pid: 'chii', need: 'horse', text: 'ねえ、{h}って何が好きなのかなあ?', choices: [
+    { label: 'ブラッシングかな', reply: 'ちいちゃんが小さな手でブラシをかけると、{h}はうっとりした。', eff: { hbond: 4, chii: 4 } },
+    { label: 'にんじんだよ', reply: '{h}はちいちゃんの手から、にんじんを上手に食べた。', eff: { carrots: -1, mood: 1, chii: 5 } }] },
 ];
