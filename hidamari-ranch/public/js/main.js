@@ -1094,6 +1094,7 @@ document.addEventListener('click', (e) => {
   const fill = e.target.closest('[data-fill]');
   if (fill) { const inp = $('#nameInput'); if (inp) inp.value = fill.dataset.fill; return; }
   const ch = e.target.closest('[data-choice]');
+  if (ch && ch.classList.contains('off')) { A.sfx('error'); toast(ch.dataset.why || 'このデータはありません。'); return; }
   if (ch && modalOpen()) {
     // まどを閉じる前に、入力欄の中身を受け取っておく
     const ni = $('#nameInput'); if (ni) nameModal.value = ni.value;
@@ -1104,21 +1105,29 @@ document.addEventListener('click', (e) => {
     return;
   }
   const b = e.target.closest('[data-act]');
-  if (b && !b.disabled) act(b.dataset.act, b.dataset);
+  if (b && b.classList.contains('off')) { A.sfx('error'); toast(whyOff(b)); return; }
+  if (b) act(b.dataset.act, b.dataset).catch(reportError);
   const tb = e.target.closest('#tabs button');
   if (tb) setTab(tb.dataset.tab);
   const reg = e.target.closest('.region');
   if (reg) { A.sfx('open'); openArea(reg.dataset.area); }
 });
-$('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal' && modalDismiss) closeModal(null); });
-$('#tabPrev').onclick = () => cycleTab(-1);
-$('#tabNext').onclick = () => cycleTab(1);
-$('#keyNext').onclick = () => nextWeek();
-$('#keyView').onclick = () => toggleView();
-$('#keyRace').onclick = () => { A.sfx('open'); openArea('office'); };
-$('#keyClose').onclick = () => { if (modalOpen() && modalDismiss) closeModal(null); else if (area) closeArea(); };
-$('#questBtn').onclick = () => showGoalList();
-$('#quest').onclick = (e) => { if (e.target.id !== 'questBtn') showGoalList(); };
+// ボタンに動きをつける(見つからない部品があっても、ほかのボタンは動くように)
+function bind(sel, fn, ev = 'click') {
+  const el = $(sel);
+  if (el) el.addEventListener(ev, fn);
+  else missingParts.push(sel);
+}
+const missingParts = [];
+bind('#modal', (e) => { if (e.target.id === 'modal' && modalDismiss) closeModal(null); });
+bind('#tabPrev', () => cycleTab(-1));
+bind('#tabNext', () => cycleTab(1));
+bind('#keyNext', () => nextWeek());
+bind('#keyView', () => toggleView());
+bind('#keyRace', () => { A.sfx('open'); openArea('office'); });
+bind('#keyClose', () => { if (modalOpen() && modalDismiss) closeModal(null); else if (area) closeArea(); });
+bind('#questBtn', (e) => { e.stopPropagation(); showGoalList(); });
+bind('#quest', () => showGoalList());
 document.addEventListener('input', (e) => {
   const id = e.target.id;
   if (!id.startsWith('snd')) return;
@@ -1151,11 +1160,41 @@ document.addEventListener('keydown', (e) => {
   $('#mapFrame').style.setProperty('--blob', `url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
 })();
 
+// 押せないボタンも、押したら理由を教える(だまって何も起きない、をなくす)
+const WHY = {
+  talk: 'この人とは今週もうおはなししました。「1週すすめる」と、また話せます。',
+  gift: '差し入れは、1人に1週間1回までです。',
+  build: 'お金が足りません。レースの賞金などでお金をためよう。',
+  buy: 'お金が足りません。',
+  breed: 'お金が足りません(種付け料)。',
+  plan: 'いまは選べません(ケガの治療中、またはまだ若すぎます)。',
+  'load-slot': 'このスロットにはセーブデータがありません。',
+};
+function whyOff(b) { return b.dataset.why || WHY[b.dataset.act] || WHY[b.dataset.choice] || 'いまは押せません。'; }
+function softDisable(root) {
+  root.querySelectorAll('button[disabled]').forEach((b) => {
+    b.disabled = false;
+    b.classList.add('off');
+    b.setAttribute('aria-disabled', 'true');
+  });
+}
+new MutationObserver(() => softDisable(document.body)).observe(document.body, { childList: true, subtree: true });
+
+function reportError(err) {
+  console.error(err);
+  busy = false;
+  toast('うまく動かないところがありました。もう一度押してみてください。直らないときは、ページを再読み込みすると、オートセーブから続けられます。', 6000);
+}
+window.addEventListener('unhandledrejection', (e) => reportError(e.reason));
 window.addEventListener('error', (e) => {
   console.error(e.error || e.message);
   toast('思わぬエラーが起きました。ページを再読み込みすると、オートセーブから続けられます。', 6000);
 });
 
 showTitle();
+// 古い画面が残っているとき(更新の直後など)は、再読み込みをお願いする
+if (missingParts.length) {
+  info('ページを再読み込みしてください', 'ゲームが新しくなりました。古い画面が残っているため、一部のボタンが動かないかもしれません。ブラウザの再読み込みボタン(⟳)を押してください。');
+}
 // テスト用(画面確認のときに使う)
 window.__hidamari = { get state() { return S; }, set state(v) { S = v; }, renderAll, openArea, setTab, nextWeek, G };

@@ -17,7 +17,11 @@ app.use((req, res, next) => {
   res.set('X-Content-Type-Options', 'nosniff');
   next();
 });
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
+// 更新したらすぐ新しいファイルが届くように、毎回「変わっていないか」をサーバーに確認させる
+// (古い画面と新しいプログラムが混ざると、ボタンが反応しなくなるため)
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res) => res.set('Cache-Control', 'no-cache'),
+}));
 
 app.get('/healthz', (req, res) => res.send('ok'));
 

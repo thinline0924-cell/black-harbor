@@ -146,7 +146,7 @@ main { position: relative; min-height: 0; }
 .btn.rose { background: var(--rose); color: #fff; box-shadow: 0 2px 0 #a8625f; }
 .btn.gold { background: var(--gold); color: #fff; box-shadow: 0 2px 0 #a07c37; }
 .btn.small { padding: 5px 10px; font-size: 12.5px; border-radius: 11px; }
-.btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+.btn:disabled, .btn.off { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .grow { flex: 1; }
 .muted { color: var(--ink-soft); font-size: 12.5px; }
