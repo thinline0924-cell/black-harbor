@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ひだまり牧場ものがたり</title>
+  <meta name="description" content="ほのぼの競走馬育成ゲーム。牧場を運営し、馬を育て、レースに挑もう。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- 紙の地と、四すみのつる草の飾り -->
+  <div class="paper" aria-hidden="true">
+    <div class="wash wash-tl"></div><div class="wash wash-tr"></div><div class="wash wash-bl"></div><div class="wash wash-br"></div>
+    <svg class="vine vine-tl" viewBox="0 0 200 200"><use href="#vine"/></svg>
+    <svg class="vine vine-tr" viewBox="0 0 200 200"><use href="#vine"/></svg>
+    <svg class="vine vine-bl" viewBox="0 0 200 200"><use href="#vine"/></svg>
+    <svg class="vine vine-br" viewBox="0 0 200 200"><use href="#vine"/></svg>
+  </div>
+
+  <!-- ゲーム画面 -->
+  <div id="app" class="hidden">
+    <header class="topbar">
+      <button class="lr" id="tabPrev" title="前のタブ(キーボード Q)">Q</button>
+      <nav class="tabs" id="tabs">
+        <button data-tab="map" class="on">マップ</button>
+        <button data-tab="horses">ウマたち</button>
+        <button data-tab="people">なかま</button>
+        <button data-tab="album">アルバム</button>
+        <button data-tab="system">システム</button>
+      </nav>
+      <button class="lr" id="tabNext" title="次のタブ(キーボード E)">E</button>
+    </header>
+
+    <div class="quest" id="quest" title="いまの目標">
+      <span class="quest-text" id="questText"></span>
+      <button class="quest-mark" id="questBtn" aria-label="目標の一覧">!</button>
+    </div>
+
+    <main id="main">
+      <!-- マップ -->
+      <section class="tab-page on" id="page-map">
+        <div class="map-wrap" id="mapWrap">
+          <div class="map-frame" id="mapFrame">
+            <div id="view3d"></div>
+            <div id="map2d" class="hidden"></div>
+            <div id="hotspots"></div>
+            <div class="tiltshift"></div>
+          </div>
+          <svg class="map-rim" viewBox="0 0 1000 560" preserveAspectRatio="none" aria-hidden="true"><path id="rimPath" d=""/></svg>
+        </div>
+        <aside class="panel hidden" id="areaPanel"></aside>
+      </section>
+      <section class="tab-page" id="page-horses"></section>
+      <section class="tab-page" id="page-people"></section>
+      <section class="tab-page" id="page-album"></section>
+      <section class="tab-page" id="page-system"></section>
+    </main>
+
+    <footer class="bottombar">
+      <div class="status" id="status"></div>
+      <div class="msg" id="msg"></div>
+      <div class="keys">
+        <button class="key" id="keyClose"><b>Esc</b>閉じる</button>
+        <button class="key" id="keyView"><b>V</b>表示切替</button>
+        <button class="key next" id="keyNext"><b>Space</b>1週すすめる</button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- タイトル -->
+  <section id="title" class="title-screen">
+    <div class="title-card">
+      <div class="title-horse" id="titleHorse"></div>
+      <div class="title-sub">ちいさな競走馬ものがたり</div>
+      <h1>ひだまり牧場</h1>
+      <div class="title-menu" id="titleMenu">
+        <button data-act="continue" id="btnContinue" class="hidden">つづきから</button>
+        <button data-act="new">はじめから</button>
+        <button data-act="load">セーブデータを読む</button>
+      </div>
+      <p class="title-note">BGMと効果音はブラウザの中でつくっています。最初にどこかを押すと鳴りはじめます。</p>
+    </div>
+  </section>
+
+  <!-- レース画面 -->
+  <section id="race" class="race-screen hidden">
+    <div id="race3d"></div>
+    <canvas id="race2d" class="hidden"></canvas>
+    <div class="race-top">
+      <div class="race-name" id="raceName"></div>
+      <div class="race-time" id="raceTime">0:00.0</div>
+    </div>
+    <ol class="race-board" id="raceBoard"></ol>
+    <div class="race-bar"><div class="race-progress" id="raceProgress"></div></div>
+    <div class="race-talk" id="raceTalk"></div>
+    <div class="race-buttons">
+      <button id="raceSpeed">はやおくり ×1</button>
+      <button id="raceSkip">結果へ</button>
+    </div>
+  </section>
+
+  <!-- 会話・お知らせのまど -->
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div class="modal-card" id="modalCard"></div></div>
+  <div id="toast" class="toast"></div>
+
+  <!-- つる草の形(飾りで使いまわす) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <g id="vine" fill="none" stroke="currentColor" stroke-linecap="round">
+        <path d="M4 120 C 30 110, 40 70, 70 60 S 120 70, 130 40 S 160 8, 196 6" stroke-width="5"/>
+        <path d="M70 60 C 60 40, 70 22, 88 20 C 100 19, 104 32, 96 38 C 90 42, 82 36, 86 30" stroke-width="3.5"/>
+        <path d="M130 40 C 140 58, 160 62, 168 52 C 174 44, 166 36, 160 42" stroke-width="3"/>
+        <path d="M36 92 C 22 80, 26 62, 40 60 C 50 60, 50 72, 42 72" stroke-width="3"/>
+        <path d="M4 160 C 30 150, 50 130, 48 110" stroke-width="4"/>
+        <path d="M160 6 C 150 -2, 186 -6, 196 20" stroke-width="2.5"/>
+        <ellipse cx="108" cy="64" rx="9" ry="5" transform="rotate(-30 108 64)" fill="currentColor" stroke="none"/>
+        <ellipse cx="54" cy="44" rx="8" ry="4.5" transform="rotate(40 54 44)" fill="currentColor" stroke="none"/>
+        <ellipse cx="150" cy="24" rx="8" ry="4.5" transform="rotate(-50 150 24)" fill="currentColor" stroke="none"/>
+        <ellipse cx="22" cy="132" rx="8" ry="4.5" transform="rotate(20 22 132)" fill="currentColor" stroke="none"/>
+      </g>
+    </defs>
+  </svg>
+
+  <noscript>このゲームを遊ぶには JavaScript を有効にしてください。</noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

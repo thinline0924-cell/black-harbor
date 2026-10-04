@@ -1,0 +1,17 @@
+{
+  "name": "hidamari-ranch",
+  "version": "1.0.0",
+  "description": "ひだまり牧場 — ほのぼの競走馬育成ゲーム(牧場運営・馬の育成・レース)",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
