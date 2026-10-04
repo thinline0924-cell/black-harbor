@@ -112,7 +112,7 @@ export function personFace(pid) {
 export const AREAS = {
   hill: { label: 'ひだまりの丘', icon: '🌳', x: 140, y: 120, rx: 110, ry: 80, colors: ['#bcd7a0', '#8fbf86'], need: 'hill' },
   stable: { label: '厩舎', icon: '🐴', x: 330, y: 120, rx: 120, ry: 80, colors: ['#e8c99a', '#c99a6c'] },
-  office: { label: '事務所', icon: '📋', x: 520, y: 100, rx: 90, ry: 70, colors: ['#b9d3e4', '#8db3cf'] },
+  office: { label: 'レース事務所', icon: '🏁', x: 520, y: 100, rx: 90, ry: 70, colors: ['#b9d3e4', '#8db3cf'] },
   house: { label: '母屋', icon: '🏡', x: 700, y: 115, rx: 110, ry: 78, colors: ['#f2c7b5', '#d99b8c'] },
   breed: { label: '繁殖場', icon: '🍼', x: 150, y: 330, rx: 120, ry: 110, colors: ['#f4dcc2', '#e2b48d'] },
   track: { label: '調教コース', icon: '🏇', x: 470, y: 300, rx: 170, ry: 115, colors: ['#e9dcb2', '#bfae74'] },

@@ -279,7 +279,15 @@ function renderAll() {
   if (!$('#hotspots').children.length) buildHotspots();
   computeDots();
 }
+function renderNextButton() {
+  const n = S.horses.filter((h) => h.entry && G.findRace(S, h.entry.raceId)?.ahead === 0).length;
+  $('#keyNext').innerHTML = n ? `<b>Space</b>🏁 1週すすめる(レース${n}頭)` : '<b>Space</b>1週すすめる';
+  $('#keyNext').classList.toggle('racing', n > 0);
+  const can = S.horses.some((h) => h.role === 'race' && !h.entry && G.racesForWeek(S.year, S.week).some((r) => G.eligible(S, h, r).ok));
+  $('#keyRace').classList.toggle('ping', can);
+}
 function renderStatus() {
+  renderNextButton();
   const c = G.nowCal(S);
   $('#status').innerHTML = `<span class="cal">${c.label}</span><span>${{ spring: '🌸', summer: '🌻', autumn: '🍁', winter: '⛄' }[c.season]} ${c.seasonLabel}</span>
     <span class="money ${S.money < 0 ? 'neg' : ''}">💰 ${yen(S.money)}</span><span title="にんじん">🥕 ${S.carrots}</span>
@@ -368,52 +376,90 @@ function raceText(r) {
   return `${r.grade ? `[${r.grade}] ` : ''}${r.label} ${SURFACE_LABEL[r.surface]}${r.dist}m`;
 }
 function gradeTag(g) { return g ? `<span class="tag ${g.toLowerCase()}">${g}</span>` : ''; }
-function areaOffice() {
-  const races = G.racesForWeek(S.year, S.week);
-  const racers = S.horses.filter((h) => h.role === 'race');
-  const rows = racers.map((h) => {
-    if (h.entry) {
-      const r = races.find((x) => x.id === h.entry.raceId);
-      return `<div class="item">${horseLine(h, `<div class="row" style="margin-top:4px"><span class="tag own">登録ずみ</span> ${r ? esc(raceText(r)) : ''} / 騎手:${esc(PEOPLE[h.entry.jockey].name)}
-        <button class="btn small" data-act="cancel-entry" data-id="${h.id}">とりけし</button></div>`)}</div>`;
-    }
-    const ok = races.filter((r) => G.eligible(S, h, r).ok);
-    if (!ok.length) {
-      let why = '今週は出られるレースがありません。';
-      if (h.injury) why = `ケガの治療中です(あと${h.injury}週)。`;
-      else if (G.horseAge(S, h) === 2 && S.week < 21) why = '2歳馬のデビューは6月(21週目)からです。それまでは調教でじっくり力をつけよう。';
-      return `<div class="item">${horseLine(h, `<div class="muted" style="margin-top:4px">${why}</div>`)}</div>`;
-    }
-    const jk = JOCKEYS.filter((j) => G.jockeyAvailable(S, j));
-    const defJ = h.jockey && jk.includes(h.jockey) ? h.jockey : jk.slice().sort((a, b) => (h.jbond[b] || 0) - (h.jbond[a] || 0))[0];
-    const opts = ok.map((r) => `<option value="${r.id}">${esc(raceText(r))} 1着${r.prize}万 — ${G.winChanceHint(S, h, r, defJ).label}</option>`).join('');
-    return `<div class="item">${horseLine(h, `<div style="margin-top:6px" class="list">
-      <select id="race-${h.id}">${opts}</select>
-      <div class="row"><select id="jockey-${h.id}">${jk.map((j) => `<option value="${j}" ${j === defJ ? 'selected' : ''}>${esc(PEOPLE[j].name)}(${PEOPLE[j].jockey.styles.map((s) => STYLE_LABEL[s]).join('・')}が得意/${PEOPLE[j].jockey.fee}万円)</option>`).join('')}</select>
-      <button class="btn small primary" data-act="enter" data-id="${h.id}">登録する</button></div>
-      <span class="muted">得意:${SURFACE_LABEL[h.surface]} ${h.dist}m前後 / ${STYLE_LABEL[h.style]}${h.fatigue >= 60 ? ' / <b style="color:var(--danger)">疲れがたまっています</b>' : ''}</span></div>`)}</div>`;
-  }).join('');
-  // これからの重賞
-  const upcoming = [];
-  for (let k = 0; k < 10; k++) {
-    let w = S.week + k, y = S.year;
-    if (w > 48) { w -= 48; y++; }
-    for (const st of STAKES.filter((x) => x.w === w)) upcoming.push({ ...st, y, cal: G.calendar(y, w) });
+function defaultJockey(h) {
+  const jk = JOCKEYS.filter((j) => G.jockeyAvailable(S, j));
+  if (h.jockey && jk.includes(h.jockey)) return h.jockey;
+  // 絆の深い騎手 → 脚質が得意な騎手 の順におすすめ
+  return jk.slice().sort((a, b) => ((h.jbond[b] || 0) - (h.jbond[a] || 0)) || (PEOPLE[b].jockey.styles.includes(h.style) - PEOPLE[a].jockey.styles.includes(h.style)))[0];
+}
+function whenText(r) {
+  const c = G.calendar(r.year, r.week);
+  return r.ahead === 0 ? '今週' : `${r.ahead}週後(${c.month}月第${c.wk}週)`;
+}
+// 出走できない理由(この先8週)
+function noRaceReason(h) {
+  if (h.injury) return `ケガの治療中です(あと${h.injury}週)。治ったらまた走れます。`;
+  if (G.horseAge(S, h) === 2 && S.week < 21) {
+    const left = 21 - S.week;
+    return `2歳馬のデビュー戦(新馬戦)は6月から。あと${left}週です。${left > G.RESERVE_WEEKS ? 'それまでは調教で力をつけよう。' : ''}`;
   }
-  const up = upcoming.map((st) => {
-    const can = racers.filter((h) => {
-      const age = y2age(h, st.y);
-      const ageOk = st.age === '2' ? age === 2 : st.age === '3' ? age === 3 : st.age === '3+' ? age >= 3 : age >= 4;
-      return ageOk && (!st.mare || h.sex === '牝');
-    });
-    return `<div class="item"><div class="grow"><div class="row">${gradeTag(st.grade)}<b>${esc(st.name)}</b></div>
-      <div class="muted">${st.cal.month}月第${st.cal.wk}週 / ${SURFACE_LABEL[st.surface]}${st.dist}m / ${G.ageText(st.age)}${st.mare ? '牝馬' : ''} / 1着 ${st.prize}万円 / 出走には獲得賞金${st.need}万円以上${st.needWin ? '(1勝以上)' : ''}</div>
-      ${can.length ? `<div class="muted">出られそう:${can.map((h) => `${esc(h.name)}${h.record.earnings >= st.need ? '' : '(賞金不足)'}`).join('、')}</div>` : ''}</div></div>`;
+  return 'この先8週のあいだに、出られるレースがありません。';
+}
+function horseRaceStatus(h) {
+  if (h.entry) {
+    const r = G.findRace(S, h.entry.raceId);
+    return { cls: 'own', text: r ? `${whenText(r)} 出走予定` : '出走予定' };
+  }
+  const ok = G.upcomingRaces(S).filter((r) => G.eligible(S, h, r).ok);
+  if (!ok.length) return { cls: 'warn', text: h.injury ? 'ケガ' : 'まだ出られない' };
+  if (ok.some((r) => r.ahead === 0)) return { cls: '', text: '今週出られる!' };
+  return { cls: '', text: '予約できる' };
+}
+let raceHorse = null, raceShowAll = false;
+function raceCard(h, r, jockey) {
+  const hint = G.winChanceHint(S, h, r, jockey);
+  const da = G.aptLetter(G.distApt(h, r.dist)), sa = h.surface === r.surface ? 'A' : 'C';
+  return `<div class="race-card ${r.grade ? 'stakes' : ''}">
+    <div class="row">${r.grade ? gradeTag(r.grade) : ''}<b>${esc(r.label)}</b><span class="grow"></span><span class="muted">${whenText(r)}</span></div>
+    <div class="row muted">${SURFACE_LABEL[r.surface]}${r.dist}m <span class="apt">距離${da}</span><span class="apt">${SURFACE_LABEL[r.surface]}${sa}</span>・1着賞金 <b>${r.prize.toLocaleString()}万円</b></div>
+    <div class="row"><span class="hint ${hint.cls}">${hint.label}</span><span class="grow"></span>
+      <button class="btn small primary" data-act="enter" data-id="${h.id}" data-race="${r.id}">${r.ahead === 0 ? 'このレースに出る' : 'このレースを予約'}</button></div>
+  </div>`;
+}
+function areaOffice() {
+  const racers = S.horses.filter((h) => h.role === 'race');
+  if (!racers.length) return `<h2>🏁 レース事務所</h2><p class="lead">競走馬がいません。子馬は2歳になると競走馬になります。</p>`;
+  if (!racers.some((h) => h.id === raceHorse)) raceHorse = (racers.find((h) => !h.entry && G.upcomingRaces(S).some((r) => G.eligible(S, h, r).ok)) || racers[0]).id;
+  const h = G.findHorse(S, raceHorse);
+  // ① 馬をえらぶ
+  const chips = racers.map((x) => {
+    const st = horseRaceStatus(x);
+    return `<button class="horse-chip ${x.id === raceHorse ? 'sel' : ''}" data-act="race-horse" data-id="${x.id}">
+      <span class="portrait">${horsePortrait(x)}</span><span><b>${esc(x.name)}</b><br><span class="tag ${st.cls}">${st.text}</span></span></button>`;
   }).join('');
-  return `<h2>📋 事務所</h2><p class="lead">今週のレースに出走登録しよう。「1週すすめる」を押すとレースが始まります。予想(◎○△×)は、いまの能力と調子からの目安です。</p>
-    <div class="list">${rows || '<p class="muted">競走馬がいません。</p>'}</div>
-    <div class="sub-h">これからの重賞レース(10週先まで)</div><div class="list">${up || '<p class="muted">しばらく重賞はありません。</p>'}</div>
-    <div class="sub-h">牧場のお金</div><p class="muted">1週間の費用:約 ${G.weekCosts(S)}万円(馬の飼い葉・あずけ代とスタッフのお給料)。賞金と種付け料が収入になります。</p>`;
+  // ② レースをえらぶ
+  let step2 = '';
+  if (h.entry) {
+    const r = G.findRace(S, h.entry.raceId);
+    step2 = `<div class="entry-box"><div>✅ <b>${esc(h.name)}</b> は <b>${r ? esc(whenText(r)) : ''}の「${r ? esc(r.label) : ''}」</b>に出走します。</div>
+      <div class="muted">${r ? `${SURFACE_LABEL[r.surface]}${r.dist}m / ` : ''}騎手:${esc(PEOPLE[h.entry.jockey].name)}</div>
+      <div class="row" style="margin-top:6px"><button class="btn small" data-act="cancel-entry" data-id="${h.id}">登録をとりけす</button></div></div>`;
+  } else {
+    const all = G.upcomingRaces(S).filter((r) => G.eligible(S, h, r).ok);
+    const jk = JOCKEYS.filter((j) => G.jockeyAvailable(S, j));
+    const defJ = defaultJockey(h);
+    const list = raceShowAll ? all : all.filter((r) => r.ahead === 0 || r.kind === 'stakes' || r.ahead <= 3);
+    if (!all.length) {
+      step2 = `<div class="entry-box warn">${esc(noRaceReason(h))}</div>`;
+    } else {
+      step2 = `<div class="row" style="margin-bottom:6px"><span class="muted">騎手:</span><select id="raceJockey">${jk.map((j) => `<option value="${j}" ${j === defJ ? 'selected' : ''}>${esc(PEOPLE[j].name)}(${PEOPLE[j].jockey.styles.map((x) => STYLE_LABEL[x]).join('・')}が得意・${PEOPLE[j].jockey.fee}万円)${j === defJ ? ' おすすめ' : ''}</option>`).join('')}</select></div>
+        <p class="muted" style="margin:0 0 6px">得意:${SURFACE_LABEL[h.surface]} ${h.dist}m前後 / ${STYLE_LABEL[h.style]} / 疲れ ${Math.round(h.fatigue)}${h.fatigue >= 60 ? ' <b style="color:var(--danger)">(疲れぎみ。休ませてからがおすすめ)</b>' : ''}</p>
+        <div class="list">${list.map((r) => raceCard(h, r, defJ)).join('')}</div>
+        ${all.length > list.length ? `<button class="btn small" style="margin-top:8px" data-act="race-all">ほかのレースも見る(あと${all.length - list.length}件)</button>` : ''}`;
+    }
+  }
+  const anyNow = racers.some((x) => x.entry && G.findRace(S, x.entry.raceId)?.ahead === 0);
+  const canFF = !racers.some((x) => x.entry) && !racers.some((x) => G.racesForWeek(S.year, S.week).some((r) => G.eligible(S, x, r).ok));
+  return `<h2>🏁 レース事務所</h2>
+    <div class="steps"><span class="${h ? 'done' : ''}">① 馬をえらぶ</span>›<span class="${h?.entry ? 'done' : ''}">② レースをえらぶ</span>›<span class="${anyNow ? 'done' : ''}">③「1週すすめる」でスタート</span></div>
+    <div class="sub-h">① 走る馬をえらぶ</div><div class="horse-chips">${chips}</div>
+    <div class="sub-h">② ${esc(h.name)} のレースをえらぶ</div>
+    <p class="muted" style="margin:0 0 6px">今週のレースと、8週先までのレースを予約できます。予想(◎○△×)は、いまの能力と調子からの目安です。</p>
+    ${step2}
+    <div class="sub-h">③ レースを始める</div>
+    <p class="muted">${anyNow ? '今週レースがあります! 右下の <b>「1週すすめる」</b> を押すと、レースが始まります。' : '登録したレースの週になったら、右下の「1週すすめる」でレースが始まります。'}</p>
+    ${canFF ? `<button class="btn small gold" data-act="ffwd">⏩ レースに出られる週まで すすめる</button>` : ''}
+    <div class="sub-h">牧場のお金</div><p class="muted">1週間の費用:約 ${G.weekCosts(S)}万円。賞金と種付け料が収入になります。</p>`;
 }
 const y2age = (h, y) => y - h.birthYear;
 
@@ -532,7 +578,7 @@ function horseDetail(h) {
       <div class="muted" style="margin-top:4px">${esc(PERSONALITIES[h.personality])}</div>
       <div class="row" style="margin-top:8px">
         ${h.needsName ? `<button class="btn small rose" data-act="name" data-id="${h.id}">名前をつける</button>` : ''}
-        ${h.role === 'race' ? `<button class="btn small primary" data-act="area" data-area="office">🏁 レースに出す</button>` : ''}
+        ${h.role === 'race' ? `<button class="btn small primary" data-act="open-race" data-id="${h.id}">🏁 レースに出す</button>` : ''}
         ${retire.length ? `<button class="btn small" data-act="retire" data-id="${h.id}">引退させる</button>` : ''}
       </div></div></div>
     <div class="cols" style="margin-top:12px">
@@ -626,11 +672,11 @@ function renderSystemPage() {
       <div class="sub-h">遊び方</div>
       <div class="card" style="font-size:13.5px;line-height:1.8">
         ・<b>マップ</b>の建物をクリックすると、その場所でできることが開きます(3D はドラッグで回せます)。<br>
-        ・<b>調教コース</b>で毎週のメニューを決め、<b>事務所</b>でレースに登録して、右下の<b>「1週すすめる」</b>を押します。<br>
+        ・<b>レースに出るには</b>:右下の<b>「🏁 レース」</b>ボタン(または地図の「レース事務所」)→ ①馬をえらぶ → ②レースのカードの「このレースに出る」(8週先まで予約もできます)→ ③右下の<b>「1週すすめる」</b>でレースが始まります。<br>・<b>調教コース</b>で毎週のメニューを決めます(「おまかせ」もできます)。<br>
         ・<b>厩舎</b>でブラッシングやおさんぽをすると、馬との<b>絆</b>が深まり、調教やレースで力を出しやすくなります。<br>
         ・<b>母屋</b>で関係者とおはなしすると<b>なかよし度</b>が上がり、いろいろ助けてくれます。<br>
         ・引退した牝馬は<b>繁殖牝馬</b>に。春に種付けをすると、次の年に子馬が生まれます。何世代もかけて最強の馬を目指そう。<br>
-        ・キーボード:Q / E でタブ切り替え、V で表示切替、Esc で閉じる、Space で1週すすめる。
+        ・キーボード:Q / E でタブ切り替え、R でレース、V で表示切替、Esc で閉じる、Space で1週すすめる。
       </div>
       <div class="sub-h">そのほか</div>
       <div class="row"><button class="btn small" data-act="to-title">タイトルにもどる</button></div>
@@ -674,6 +720,35 @@ async function nextWeek() {
     busy = false;
     renderAll();
   }
+}
+
+// 出られるレースがある週まで、まとめてすすめる(レース・イベントがあれば止まる)
+async function fastForward() {
+  if (busy) return;
+  busy = true;
+  const lines = [], goals = [];
+  let n = 0, yearEnd = null;
+  try {
+    for (; n < 24; n++) {
+      const racers = S.horses.filter((h) => h.role === 'race');
+      if (racers.some((h) => h.entry && G.findRace(S, h.entry.raceId)?.ahead === 0)) break;
+      if (n > 0 && racers.some((h) => G.racesForWeek(S.year, S.week).some((r) => G.eligible(S, h, r).ok))) break;
+      const out = G.advanceWeek(S);
+      lines.push(...out.lines);
+      goals.push(...out.goals);
+      if (out.yearEnd) { yearEnd = out.yearEnd; n++; break; }
+      if (S.pending.length) { n++; break; }
+    }
+  } finally { busy = false; }
+  A.sfx('bell');
+  saveTo(AUTO_KEY);
+  renderAll();
+  await modal(`<h3>⏩ ${n}週すすめました</h3><p>${esc(G.nowCal(S).label)}になりました。</p>
+    <div class="report-list">${goals.map((g) => `<div class="r">★ 目標達成:${esc(g)}</div>`).join('')}${lines.slice(-12).map((l) => `<div class="r">${esc(l)}</div>`).join('')}</div>
+    <div class="actions"><button class="btn primary" data-choice="ok">OK</button></div>`, { dismiss: true });
+  if (yearEnd) await yearEndModal(yearEnd);
+  await processPending();
+  if (area) renderArea();
 }
 
 async function yearEndModal(y) {
@@ -886,15 +961,18 @@ async function act(name, d) {
       break;
     }
     case 'enter': {
-      const raceId = document.getElementById('race-' + d.id)?.value;
-      const jockey = document.getElementById('jockey-' + d.id)?.value;
-      const r = G.enter(S, d.id, raceId, jockey);
-      if (!r.ok) { A.sfx('error'); toast(r.text, 4000); break; }
+      const r = G.enter(S, d.id, d.race, $('#raceJockey')?.value || defaultJockey(G.findHorse(S, d.id)));
+      if (!r.ok) { A.sfx('error'); toast(r.text, 4500); break; }
       A.sfx('coin');
-      toast(r.text);
+      toast(r.text, 4000);
+      say(r.text + ' 右下の「1週すすめる」で進めよう。');
       renderAll();
       break;
     }
+    case 'race-horse': raceHorse = d.id; raceShowAll = false; A.sfx('click'); renderArea(); break;
+    case 'race-all': raceShowAll = true; renderArea(); break;
+    case 'open-race': raceHorse = d.id || raceHorse; openArea('office'); break;
+    case 'ffwd': await fastForward(); break;
     case 'cancel-entry': G.cancelEntry(S, d.id); A.sfx('close'); renderAll(); break;
     case 'retire': await retireFlow(d.id); break;
     case 'pick-mare': selMare = d.id; A.sfx('click'); renderArea(); break;
@@ -1037,6 +1115,7 @@ $('#tabPrev').onclick = () => cycleTab(-1);
 $('#tabNext').onclick = () => cycleTab(1);
 $('#keyNext').onclick = () => nextWeek();
 $('#keyView').onclick = () => toggleView();
+$('#keyRace').onclick = () => { A.sfx('open'); openArea('office'); };
 $('#keyClose').onclick = () => { if (modalOpen() && modalDismiss) closeModal(null); else if (area) closeArea(); };
 $('#questBtn').onclick = () => showGoalList();
 $('#quest').onclick = (e) => { if (e.target.id !== 'questBtn') showGoalList(); };
@@ -1059,6 +1138,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'q' || e.key === 'Q') cycleTab(-1);
   else if (e.key === 'e' || e.key === 'E') cycleTab(1);
   else if (e.key === 'v' || e.key === 'V') toggleView();
+  else if (e.key === 'r' || e.key === 'R') openArea('office');
   else if (e.key === ' ') { e.preventDefault(); nextWeek(); }
   else if (/^[1-5]$/.test(e.key)) setTab(TABS[Number(e.key) - 1]);
 });

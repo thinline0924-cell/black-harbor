@@ -284,6 +284,8 @@ textarea { width: 100%; min-height: 90px; font-size: 12px; }
   .bottombar > * { min-width: 0; }
   .keys { gap: 6px; }
   .key { font-size: 13px; }
+  #keyClose { display: none; }
+  .key.race b { display: none; }
   .tab-page { padding: 6px 12px; }
   .map-wrap { left: 6px; right: 6px; top: 4px; bottom: 4px; width: auto; transform: none; aspect-ratio: auto; max-height: none; }
   .hot { font-size: 12px; padding: 3px 8px 3px 5px; }
@@ -300,3 +302,24 @@ textarea { width: 100%; min-height: 90px; font-size: 12px; }
   .race-buttons { bottom: 112px; right: 10px; }
   .timeline .t { grid-template-columns: 1fr; gap: 2px; }
 }
+
+/* ---------- レース事務所 ---------- */
+.steps { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; color: var(--ink-soft); margin: 4px 0 6px; }
+.steps span { background: #ece6d6; border-radius: 12px; padding: 3px 10px; }
+.steps span.done { background: var(--teal); color: #fff; }
+.horse-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.horse-chip { display: flex; gap: 8px; align-items: center; border: 2px solid #efe7d6; background: #fffdf8; border-radius: 16px; padding: 6px 10px 6px 6px; text-align: left; font-size: 13px; }
+.horse-chip .portrait { width: 40px; height: 40px; }
+.horse-chip.sel { border-color: var(--teal); background: #eef6f2; box-shadow: 0 0 0 3px rgba(79,143,138,.15); }
+.race-card { background: #fffdf8; border: 2px solid #efe7d6; border-radius: 16px; padding: 10px 12px; display: grid; gap: 5px; }
+.race-card.stakes { border-color: #ecd9a8; background: #fffaf0; }
+.race-card .apt { font-size: 11px; background: #eef1e8; border-radius: 8px; padding: 0 6px; }
+.hint { font-size: 12.5px; font-weight: 700; padding: 2px 10px; border-radius: 10px; }
+.hint.good { background: #fde3e6; color: #a2475b; } .hint.ok { background: #fbeccd; color: #8a5f12; }
+.hint.mid { background: #e9eef0; color: #4e6375; } .hint.bad { background: #ece9e3; color: #8a857a; }
+.entry-box { background: #eef6f2; border: 2px solid #cfe3d8; border-radius: 16px; padding: 12px; font-size: 14px; line-height: 1.7; }
+.entry-box.warn { background: #fbf3e4; border-color: #efdcb4; }
+.key.race { background: #fbf8f1; border-radius: 20px; padding: 6px 12px 6px 6px; box-shadow: 0 2px 0 #d8d0bd; }
+.key.race.ping { animation: ping 1.6s infinite; }
+@keyframes ping { 50% { box-shadow: 0 2px 0 #d8d0bd, 0 0 0 6px rgba(212,138,134,.35); } }
+.key.next.racing { background: var(--rose); box-shadow: 0 3px 0 #a8625f; }

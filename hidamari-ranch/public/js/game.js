@@ -259,17 +259,33 @@ export function racesForWeek(year, week) {
       const dist = pool[Math.floor(hashRand(seed) * pool.length)];
       const surface = hashRand(seed + 0.5) < (short ? 0.55 : 0.8) ? 'turf' : 'dirt';
       const c = CLASSES[cls];
+      if (list.some((x) => x.cls === cls && x.age === age && x.dist === dist && x.surface === surface)) continue; // 同じレースは1つだけ
       list.push({ id: `y${year}w${week}-${cls}${age}-${v}`, kind: 'class', cls, grade: '', name: c.label, label: `${c.label}(${age === '2' ? '2歳' : age === '3' ? '3歳' : age === '2+' ? '' : '3歳以上'})`.replace('()', ''), age, surface, dist, prize: c.prize, year, week });
     }
   }
   return list;
 }
-export const findRace = (s, raceId) => racesForWeek(s.year, s.week).find((r) => r.id === raceId);
+// 何週先のレースか(今週 = 0)
+export const weeksAhead = (s, race) => (race.year - s.year) * WEEKS_PER_YEAR + race.week - s.week;
+export const RESERVE_WEEKS = 8; // 何週先まで出走予約できるか
+// 今週から n 週先までのレース(年をまたいでもよい)
+export function upcomingRaces(s, n = RESERVE_WEEKS) {
+  const list = [];
+  for (let k = 0; k <= n; k++) {
+    let y = s.year, w = s.week + k;
+    while (w > WEEKS_PER_YEAR) { w -= WEEKS_PER_YEAR; y++; }
+    for (const r of racesForWeek(y, w)) list.push({ ...r, ahead: k });
+  }
+  return list;
+}
+export const findRace = (s, raceId) => upcomingRaces(s).find((r) => r.id === raceId);
 
 export function eligible(s, h, race) {
-  const age = horseAge(s, h);
+  const age = race.year - h.birthYear;
+  const ahead = weeksAhead(s, race);
   if (h.role !== 'race') return { ok: false, why: '競走馬ではありません' };
-  if (h.injury > 0) return { ok: false, why: `ケガの治療中(あと${h.injury}週)` };
+  if (ahead < 0) return { ok: false, why: 'もう終わったレースです' };
+  if (h.injury > ahead) return { ok: false, why: `ケガの治療中(あと${h.injury}週)` };
   const ageOk = race.age === '2' ? age === 2 : race.age === '3' ? age === 3 : race.age === '2+' ? age >= 2 : race.age === '3+' ? age >= 3 : race.age === '4+' ? age >= 4 : false;
   if (!ageOk) return { ok: false, why: `年齢の条件(${ageText(race.age)})に合いません` };
   if (age === 2 && race.week < 21) return { ok: false, why: '2歳馬のデビューは6月からです' };
@@ -295,10 +311,12 @@ export function enter(s, horseId, raceId, jockeyId) {
   if (!e.ok) return { ok: false, text: e.why };
   if (!JOCKEYS.includes(jockeyId) || !jockeyAvailable(s, jockeyId)) return { ok: false, text: 'その騎手には頼めません。' };
   const busy = s.horses.find((o) => o.id !== h.id && o.entry && o.entry.raceId === raceId && o.entry.jockey === jockeyId);
-  if (busy) return { ok: false, text: `${PEOPLE[jockeyId].name}はこのレースで${busy.name}に乗ります。` };
-  h.entry = { raceId, jockey: jockeyId };
+  if (busy) return { ok: false, text: `${PEOPLE[jockeyId].name}はこのレースで${busy.name}に乗ります。ほかの騎手を選んでください。` };
+  h.entry = { raceId, jockey: jockeyId, year: race.year, week: race.week };
   h.jockey = jockeyId;
-  return { ok: true, text: `${h.name}を「${race.label}」に登録しました(騎手:${PEOPLE[jockeyId].name})。` };
+  const ahead = weeksAhead(s, race);
+  const when = ahead === 0 ? '今週' : `${ahead}週後`;
+  return { ok: true, text: `${h.name}を${when}の「${race.label}」に登録しました(騎手:${PEOPLE[jockeyId].name})。` };
 }
 export function cancelEntry(s, horseId) {
   const h = findHorse(s, horseId);
@@ -835,7 +853,9 @@ export function advanceWeek(s) {
   for (const h of s.horses) {
     if (!h.entry) continue;
     const race = findRace(s, h.entry.raceId);
-    if (!race || !eligible(s, h, race).ok) { h.entry = null; continue; }
+    if (race && race.ahead > 0) continue; // まだ先のレース(予約)
+    const e = race ? eligible(s, h, race) : { ok: false, why: 'レースが見つかりません' };
+    if (!e.ok) { out.lines.push(`${h.name}は出走できなくなったため、登録を取り消しました(${e.why})。`); h.entry = null; continue; }
     if (!byRace.has(race.id)) byRace.set(race.id, { race, list: [] });
     byRace.get(race.id).list.push({ h, jockey: h.entry.jockey });
   }
@@ -854,7 +874,6 @@ export function advanceWeek(s) {
     if (h.role === 'race') { trainHorse(s, h, out); if (!['rest', 'pasture'].includes(h.plan)) anyTrain = true; }
     else if (h.role === 'foal') growFoal(s, h);
     else { h.fatigue = 0; h.mood = clamp(h.mood + (Math.random() < 0.3 ? 1 : 0), 0, 4); }
-    h.entry = null;
   }
   if (anyTrain || s.horses.some((h) => h.role === 'race')) completeGoal(s, 'plan', out.goals);
 
@@ -909,6 +928,7 @@ export function advanceWeek(s) {
   for (const m of [...s.horses]) {
     if (m.pregnant && m.pregnant.dueYear === s.year && s.week >= m.pregnant.dueWeek) birth(s, m, out);
   }
+  if (s.week === 21 && s.horses.some((h) => h.role === 'race' && horseAge(s, h) === 2)) s.pending.push({ type: 'unlock', text: '🏁 6月になり、2歳馬のデビュー戦(新馬戦)が始まりました! 右下の「🏁 レース」ボタンから出走登録してみよう。' });
   if (s.week === 25) { genMarket(s, 'yearling'); out.lines.push('🔔 町で1歳馬のセリがはじまった(7月のあいだ)。'); }
   if (s.week === 45) { genMarket(s, 'mare'); out.lines.push('🔔 町で繁殖牝馬のセールがはじまった(12月のあいだ)。'); }
   if (s.week === 9 && s.horses.some((h) => h.role === 'brood')) out.lines.push('🌸 種付けの季節になった(3〜5月)。「繁殖場」で相手を選ぼう。');
