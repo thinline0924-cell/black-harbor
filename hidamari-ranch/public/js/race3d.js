@@ -1,8 +1,8 @@
 // ひだまり牧場 — レースの 3D 画面(競馬場・走る馬たち・カメラ)
 
 import * as THREE from 'three';
-import { makeHorse, animateHorse, box, mat, makeTree } from './models.js';
-import { point, L, R, STRAIGHT, FINISH_U, startU, makeLaner } from './racepath.js';
+import { makeHorse, animateHorse, box, mat, makeTree } from './models.js?v=4';
+import { point, L, R, STRAIGHT, FINISH_U, startU, makeLaner } from './racepath.js?v=4';
 
 const SILKS = ['#ffffff', '#2b2b2b', '#d9544d', '#4a78c2', '#f0c94a', '#5aa36a', '#f09a4a', '#e7a1c0', '#8a6fc4', '#62b9c9'];
 

@@ -1,7 +1,7 @@
 // ひだまり牧場 — レースの 2D 画面(3D が使えないときの代わり。上から見たコース)
 
-import { point, L, R, STRAIGHT, FINISH_U, startU, makeLaner } from './racepath.js';
-import { COATS } from './data.js';
+import { point, L, R, STRAIGHT, FINISH_U, startU, makeLaner } from './racepath.js?v=4';
+import { COATS } from './data.js?v=4';
 
 export function createRace2D(canvas) {
   const ctx = canvas.getContext('2d');

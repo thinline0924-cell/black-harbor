@@ -1,7 +1,7 @@
 // ひだまり牧場 — 絵(SVG)を作る道具
 // 馬の横顔・関係者の似顔絵・絵地図・ふちの形。画像ファイルは使わず、ここで描きます。
 
-import { COATS, PEOPLE } from './data.js';
+import { COATS, PEOPLE } from './data.js?v=4';
 
 // 同じ種からいつも同じ乱数
 function seeded(seed) {

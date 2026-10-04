@@ -2,7 +2,7 @@
 // 箱や円すいを組み合わせて作ります(外部のモデルファイルは使いません)。
 
 import * as THREE from 'three';
-import { COATS } from './data.js';
+import { COATS } from './data.js?v=4';
 
 const matCache = new Map();
 export function mat(color, opts = {}) {

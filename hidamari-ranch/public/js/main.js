@@ -1,21 +1,22 @@
 // ひだまり牧場 — 画面の操作(タブ・パネル・会話・レースの再生・セーブ)
 // ルールの計算は game.js にまかせて、ここでは「見せる・押す」だけを書きます。
 
-import * as G from './game.js';
+import * as G from './game.js?v=4';
 import {
   STATS, STAT_LABEL, STYLE_LABEL, GROWTH_LABEL, SURFACE_LABEL, MOOD_LABEL, PERSONALITIES, COATS, PLANS, YOUNG_PLANS,
   PEOPLE, JOCKEYS, HEART_EVENTS, FACILITIES, GOALS, STAKES,
-} from './data.js';
-import { horsePortrait, personFace, framePath, map2dSVG, AREAS, cupSVG } from './art.js';
-import { radar, lineChart, barChart } from './charts.js';
-import * as A from './audio.js';
-import { createRace2D } from './race2d.js';
+} from './data.js?v=4';
+import { horsePortrait, personFace, framePath, map2dSVG, AREAS, cupSVG } from './art.js?v=4';
+import { radar, lineChart, barChart } from './charts.js?v=4';
+import * as A from './audio.js?v=4';
+import { createRace2D } from './race2d.js?v=4';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const yen = (v) => `${Math.round(v).toLocaleString()}万円`;
 const hearts = (b) => '♥'.repeat(Math.floor(b / 20)) + '♡'.repeat(5 - Math.floor(b / 20));
 
+const BUILD = 4; // game.js の BUILD と同じにする
 const AUTO_KEY = 'hidamari-save-auto';
 const SLOT_KEY = (n) => `hidamari-save-${n}`;
 const TABS = ['map', 'horses', 'people', 'album', 'system'];
@@ -196,7 +197,7 @@ async function startGame() {
 
 async function init3D() {
   try {
-    const mod = await import('./ranch3d.js');
+    const mod = await import('./ranch3d.js?v=4');
     ranch = mod.createRanch($('#view3d'), {
       onArea: (a) => { A.sfx('open'); openArea(a); },
       onHorse: (id) => { A.sfx('neigh'); selHorse = id; openArea('stable'); },
@@ -824,7 +825,7 @@ async function playRace(res) {
   let view = null;
   if (!raceFailed) {
     try {
-      if (!raceView) { const mod = await import('./race3d.js'); raceView = mod.createRaceView($('#race3d')); }
+      if (!raceView) { const mod = await import('./race3d.js?v=4'); raceView = mod.createRaceView($('#race3d')); }
       view = raceView;
       $('#race3d').classList.remove('hidden');
       $('#race2d').classList.add('hidden');
@@ -1115,7 +1116,7 @@ document.addEventListener('click', (e) => {
 // ボタンに動きをつける(見つからない部品があっても、ほかのボタンは動くように)
 function bind(sel, fn, ev = 'click') {
   const el = $(sel);
-  if (el) el.addEventListener(ev, fn);
+  if (el) el.addEventListener(ev, (e) => { try { const r = fn(e); if (r?.catch) r.catch(reportError); } catch (err) { reportError(err); } });
   else missingParts.push(sel);
 }
 const missingParts = [];
@@ -1183,17 +1184,15 @@ new MutationObserver(() => softDisable(document.body)).observe(document.body, { 
 function reportError(err) {
   console.error(err);
   busy = false;
-  toast('うまく動かないところがありました。もう一度押してみてください。直らないときは、ページを再読み込みすると、オートセーブから続けられます。', 6000);
+  const detail = String(err?.message || err || '').slice(0, 120);
+  toast(`うまく動かないところがありました。ページを再読み込み(⟳)すると、オートセーブから続けられます。(くわしく:${detail})`, 8000);
 }
 window.addEventListener('unhandledrejection', (e) => reportError(e.reason));
-window.addEventListener('error', (e) => {
-  console.error(e.error || e.message);
-  toast('思わぬエラーが起きました。ページを再読み込みすると、オートセーブから続けられます。', 6000);
-});
+window.addEventListener('error', (e) => reportError(e.error || new Error(e.message)));
 
 showTitle();
 // 古い画面が残っているとき(更新の直後など)は、再読み込みをお願いする
-if (missingParts.length) {
+if (missingParts.length || G.BUILD !== BUILD) {
   info('ページを再読み込みしてください', 'ゲームが新しくなりました。古い画面が残っているため、一部のボタンが動かないかもしれません。ブラウザの再読み込みボタン(⟳)を押してください。');
 }
 // テスト用(画面確認のときに使う)

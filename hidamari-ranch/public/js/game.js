@@ -5,9 +5,10 @@ import {
   WEEKS_PER_YEAR, STATS, PLANS, PEOPLE, JOCKEYS, HEART_EVENTS, RENTAL_STUDS, HORSE_NAMES, NAME_HEAD, NAME_TAIL,
   NPC_HEAD, NPC_TAIL, RIVAL_NAMES, STAKES, CLASSES, GRADE_LEVEL, GRADE_LEVEL_2YO, GRADE_LEVEL_3YO, FACILITIES,
   RANDOM_EVENTS, GOALS, COAT_KEYS, PERSONALITIES, STYLE_LABEL, MOOD_LABEL, TALK,
-} from './data.js';
+} from './data.js?v=4';
 
 export const SAVE_VERSION = 1;
+export const BUILD = 4; // 版の番号(main.js の BUILD と同じにする)
 
 // ---------- 小さな道具 ----------
 const rand = (a, b) => a + Math.random() * (b - a);

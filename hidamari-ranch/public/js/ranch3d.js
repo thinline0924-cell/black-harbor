@@ -3,7 +3,7 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { makeHorse, animateHorse, makeTree, makeHouse, makeFence, box, mat, shadeHex } from './models.js';
+import { makeHorse, animateHorse, makeTree, makeHouse, makeFence, box, mat, shadeHex } from './models.js?v=4';
 
 const GRASS = { spring: '#a6cf7c', summer: '#8cc46c', autumn: '#c9bf72', winter: '#dfe7da' };
 const SKY = { spring: '#cfe6ea', summer: '#bfe0ec', autumn: '#e8dcc8', winter: '#dfe7ec' };
